@@ -41,13 +41,24 @@ const client = new Client()
 async function checkAppwriteConnection() {
     try {
         console.log("Testing connection to Appwrite...");
-        // Remove the setSelfSigned call since it's not available
         
-        const account = new Account(client);
-        console.log("Account object created, attempting to get account info...");
-        await account.get();
-        console.log("Connection to Appwrite successful!");
-        return true;
+        // Instead of checking with account.get(), which requires auth,
+        // use a public API endpoint like locale
+        const response = await fetch('https://cloud.appwrite.io/v1/locale', {
+            method: 'GET',
+            headers: {
+                'X-Appwrite-Project': '67eea53e001c4b06d031',
+            }
+        });
+        
+        if (response.ok) {
+            console.log("Connection to Appwrite successful!");
+            return true;
+        } else {
+            const errorData = await response.json();
+            console.error("Appwrite API error:", errorData);
+            return false;
+        }
     } catch (error) {
         console.error("Appwrite connection error:", error);
         
@@ -68,11 +79,28 @@ const account = new Account(client);
 // Check if user is already logged in
 async function checkUserSession() {
     try {
-        await checkAppwriteConnection();
-        const user = await account.get();
-        showUserProfile(user);
+        // First check if we can connect to Appwrite
+        const connectionOk = await checkAppwriteConnection();
+        if (!connectionOk) {
+            console.log("Couldn't establish connection to Appwrite");
+            return;
+        }
+        
+        // Then try to get the current user (may fail if not logged in)
+        try {
+            const user = await account.get();
+            showUserProfile(user);
+            console.log("User is logged in:", user);
+        } catch (error) {
+            if (error.code === 401) {
+                console.log("User is not logged in (expected behavior)");
+                // This is normal for not logged in users, don't show an error
+            } else {
+                console.error("Error getting user session:", error);
+            }
+        }
     } catch (error) {
-        console.log('User is not logged in:', error.message);
+        console.error("Error in checkUserSession:", error);
     }
 }
 
