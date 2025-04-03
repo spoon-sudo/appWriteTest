@@ -41,8 +41,7 @@ const client = new Client()
 async function checkAppwriteConnection() {
     try {
         console.log("Testing connection to Appwrite...");
-        // Add self-signed option to help with potential SSL issues
-        client.setSelfSigned(true);
+        // Remove the setSelfSigned call since it's not available
         
         const account = new Account(client);
         console.log("Account object created, attempting to get account info...");
@@ -51,7 +50,14 @@ async function checkAppwriteConnection() {
         return true;
     } catch (error) {
         console.error("Appwrite connection error:", error);
-        alert("Connection to Appwrite failed. Please check console for details.");
+        
+        // Show different messages based on error type
+        if (error.message && error.message.includes('Failed to fetch')) {
+            alert("Connection to Appwrite failed due to a CORS issue. Please make sure your domain is registered in the Appwrite console.");
+        } else {
+            alert("Connection to Appwrite failed: " + error.message);
+        }
+        
         return false;
     }
 }
