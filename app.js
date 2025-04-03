@@ -81,8 +81,12 @@ async function checkEmailVerification(user) {
     // Make sure we're looking at the exact verification status
     console.log("Raw user data:", JSON.stringify(user, null, 2));
     
+    // Force logout if not verified
     if (user.emailVerification !== true) {
         console.log("Email is NOT verified for user:", user.$id);
+        
+        // Immediately end their session if trying to access the app without verification
+        showVerificationNeeded(user);
         return false;
     }
     
@@ -93,7 +97,6 @@ async function checkEmailVerification(user) {
 // Force logout if email is not verified
 async function enforceVerification(user) {
     if (!await checkEmailVerification(user)) {
-        showVerificationNeeded(user);
         return false;
     }
     return true;
@@ -114,14 +117,19 @@ async function checkUserSession() {
             const user = await account.get();
             console.log("User data:", user);
             
-            // Strictly enforce verification
-            if (await enforceVerification(user)) {
-                showUserProfile(user);
+            // STRICTLY enforce verification - no access without verification
+            const isVerified = await enforceVerification(user);
+            if (!isVerified) {
+                console.log("User not verified, showing verification screen");
+                return; // Stop here, verification screen is already shown
             }
+            
+            showUserProfile(user);
         } catch (error) {
             if (error.code === 401) {
                 console.log("User is not logged in (expected behavior)");
                 // This is normal for not logged in users, don't show an error
+                document.getElementById('login-section').style.display = 'block';
             } else {
                 console.error("Error getting user session:", error);
             }
@@ -173,10 +181,10 @@ document.getElementById('login-form').addEventListener('submit', async function(
             // Strictly check email verification
             const isVerified = await checkEmailVerification(user);
             
+            // If not verified, automatically delete the session to enforce verification
             if (!isVerified) {
                 // Show verification screen and send a new verification email
-                showVerificationNeeded(user);
-                alert("Email verification is required. Please check your inbox and verify your email.");
+                alert("Email verification is required. Please check your inbox and verify your email before logging in.");
                 
                 try {
                     await account.createVerification(window.location.origin + '/verification-success.html');
@@ -201,6 +209,19 @@ document.getElementById('signup-form').addEventListener('submit', async function
     const name = document.getElementById('signup-name').value;
     const email = document.getElementById('signup-email').value;
     const password = document.getElementById('signup-password').value;
+    const confirmPassword = document.getElementById('signup-confirm-password').value;
+    
+    // Check if passwords match (additional client-side validation)
+    if (password !== confirmPassword) {
+        alert("Passwords do not match. Please try again.");
+        return;
+    }
+    
+    // Check if terms are agreed to
+    if (!document.getElementById('terms-checkbox').checked) {
+        alert("You must agree to the Terms of Service and Privacy Policy to continue.");
+        return;
+    }
     
     try {
         // Check connection before attempting signup
@@ -218,7 +239,7 @@ document.getElementById('signup-form').addEventListener('submit', async function
             
             // Show verification needed screen
             showVerificationNeeded(user);
-            alert("We've sent a verification email to your inbox. You must verify your email address before you can access all features.");
+            alert("We've sent a verification email to your inbox. You MUST verify your email address before you can login and access the app.");
         }
     } catch (error) {
         console.error('Signup failed', error);

@@ -3,52 +3,176 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Appwrite Auth Demo</title>
+    <title>SecureAuth | Appwrite Demo</title>
     <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
 <body>
-    <div class="container">
-        <div id="login-section">
-            <h2>Login</h2>
-            <form id="login-form">
-                <input type="email" id="login-email" placeholder="Email" required>
-                <input type="password" id="login-password" placeholder="Password" required>
-                <button type="submit">Login</button>
-            </form>
-            <p>Don't have an account? <a href="#" id="show-signup">Sign up</a></p>
+    <div class="auth-container">
+        <div class="auth-logo">
+            <i class="fas fa-shield-alt"></i>
+            <h1>SecureAuth</h1>
         </div>
-
-        <div id="signup-section" style="display: none;">
-            <h2>Sign Up</h2>
-            <form id="signup-form">
-                <input type="text" id="signup-name" placeholder="Name" required>
-                <input type="email" id="signup-email" placeholder="Email" required>
-                <input type="password" id="signup-password" placeholder="Password" required>
-                <button type="submit">Sign Up</button>
-            </form>
-            <p>Already have an account? <a href="#" id="show-login">Login</a></p>
-        </div>
-
-        <div id="verification-section" style="display: none;">
-            <h2>Email Verification Required</h2>
-            <div class="verification-info">
-                <p>We've sent a verification email to: <strong><span id="verification-email"></span></strong></p>
-                <p>Please check your inbox and click the verification link to continue.</p>
-                <div class="verification-actions">
-                    <button id="resend-verification" class="btn-secondary">Resend Verification Email</button>
-                    <button id="verification-logout-btn" class="btn-secondary">Logout</button>
+        
+        <div class="container">
+            <div id="login-section">
+                <h2>Welcome Back</h2>
+                <p class="auth-description">Sign in to your account to continue</p>
+                
+                <form id="login-form">
+                    <div class="input-group">
+                        <i class="fas fa-envelope input-icon"></i>
+                        <input type="email" id="login-email" placeholder="Email address" required>
+                    </div>
+                    <div class="input-group">
+                        <i class="fas fa-lock input-icon"></i>
+                        <input type="password" id="login-password" placeholder="Password" required>
+                        <i class="fas fa-eye-slash toggle-password" onclick="togglePasswordVisibility(this)"></i>
+                    </div>
+                    <button type="submit" class="btn-primary">Sign In</button>
+                </form>
+                
+                <div class="auth-footer">
+                    <p>Don't have an account? <a href="#" id="show-signup">Create Account</a></p>
                 </div>
             </div>
-        </div>
 
-        <div id="user-section" style="display: none;">
-            <h2>Welcome, <span id="user-name"></span>!</h2>
-            <p>You're logged in with email: <span id="user-email"></span></p>
-            <button id="logout-btn">Logout</button>
+            <div id="signup-section" style="display: none;">
+                <h2>Create Account</h2>
+                <p class="auth-description">Sign up to get started</p>
+                
+                <form id="signup-form">
+                    <div class="input-group">
+                        <i class="fas fa-user input-icon"></i>
+                        <input type="text" id="signup-name" placeholder="Full name" required>
+                    </div>
+                    <div class="input-group">
+                        <i class="fas fa-envelope input-icon"></i>
+                        <input type="email" id="signup-email" placeholder="Email address" required>
+                    </div>
+                    <div class="input-group">
+                        <i class="fas fa-lock input-icon"></i>
+                        <input type="password" id="signup-password" placeholder="Password" minlength="8" required>
+                        <i class="fas fa-eye-slash toggle-password" onclick="togglePasswordVisibility(this)"></i>
+                    </div>
+                    <div class="input-group">
+                        <i class="fas fa-check-circle input-icon"></i>
+                        <input type="password" id="signup-confirm-password" placeholder="Confirm password" minlength="8" required>
+                        <i class="fas fa-eye-slash toggle-password" onclick="togglePasswordVisibility(this)"></i>
+                    </div>
+                    <div class="password-strength" id="password-strength">
+                        <div class="strength-bar">
+                            <div class="strength-indicator" id="strength-indicator"></div>
+                        </div>
+                        <p id="strength-text">Password strength: Too weak</p>
+                    </div>
+                    <div class="terms-checkbox">
+                        <input type="checkbox" id="terms-checkbox" required>
+                        <label for="terms-checkbox">I agree to the <a href="#" class="terms-link">Terms of Service</a> and <a href="#" class="terms-link">Privacy Policy</a></label>
+                    </div>
+                    <button type="submit" class="btn-primary">Create Account</button>
+                </form>
+                
+                <div class="auth-footer">
+                    <p>Already have an account? <a href="#" id="show-login">Sign In</a></p>
+                </div>
+            </div>
+
+            <div id="verification-section" style="display: none;">
+                <h2>Verification Required</h2>
+                <div class="verification-icon">
+                    <i class="fas fa-envelope-open-text"></i>
+                </div>
+                <div class="verification-info">
+                    <p>We've sent a verification email to:</p>
+                    <p class="verification-email"><strong><span id="verification-email"></span></strong></p>
+                    <p>Please check your inbox and click the verification link to continue.</p>
+                    <div class="verification-actions">
+                        <button id="resend-verification" class="btn-secondary"><i class="fas fa-paper-plane"></i> Resend Verification Email</button>
+                        <button id="verification-logout-btn" class="btn-outline"><i class="fas fa-sign-out-alt"></i> Sign Out</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="user-section" style="display: none;">
+                <div class="profile-header">
+                    <h2>Welcome, <span id="user-name"></span>!</h2>
+                    <div class="profile-avatar">
+                        <i class="fas fa-user-circle"></i>
+                    </div>
+                </div>
+                <div class="profile-info">
+                    <p><i class="fas fa-envelope"></i> Email: <span id="user-email"></span></p>
+                    <p><i class="fas fa-check-circle"></i> Account verified</p>
+                </div>
+                <button id="logout-btn" class="btn-danger"><i class="fas fa-sign-out-alt"></i> Sign Out</button>
+            </div>
+        </div>
+        
+        <div class="security-notice">
+            <i class="fas fa-lock"></i>
+            <p>Your connection is secure</p>
         </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/appwrite@11.0.0"></script>
+    <script>
+        // Function to toggle password visibility
+        function togglePasswordVisibility(icon) {
+            const input = icon.previousElementSibling;
+            if (input.type === "password") {
+                input.type = "text";
+                icon.classList.replace("fa-eye-slash", "fa-eye");
+            } else {
+                input.type = "password";
+                icon.classList.replace("fa-eye", "fa-eye-slash");
+            }
+        }
+
+        // Password strength meter
+        document.getElementById('signup-password').addEventListener('input', function() {
+            const password = this.value;
+            const strengthIndicator = document.getElementById('strength-indicator');
+            const strengthText = document.getElementById('strength-text');
+            
+            // Calculate password strength
+            let strength = 0;
+            if (password.length >= 8) strength += 25;
+            if (password.match(/[a-z]+/)) strength += 25;
+            if (password.match(/[A-Z]+/)) strength += 25;
+            if (password.match(/[0-9]+/)) strength += 25;
+            
+            // Update strength indicator
+            strengthIndicator.style.width = strength + '%';
+            
+            // Update color based on strength
+            if (strength <= 25) {
+                strengthIndicator.style.backgroundColor = '#ff4d4d';
+                strengthText.textContent = 'Password strength: Too weak';
+            } else if (strength <= 50) {
+                strengthIndicator.style.backgroundColor = '#ffa64d';
+                strengthText.textContent = 'Password strength: Weak';
+            } else if (strength <= 75) {
+                strengthIndicator.style.backgroundColor = '#2db7f5';
+                strengthText.textContent = 'Password strength: Good';
+            } else {
+                strengthIndicator.style.backgroundColor = '#4CAF50';
+                strengthText.textContent = 'Password strength: Strong';
+            }
+        });
+
+        // Check if passwords match
+        document.getElementById('signup-confirm-password').addEventListener('input', function() {
+            const password = document.getElementById('signup-password').value;
+            const confirmPassword = this.value;
+            
+            if (password !== confirmPassword) {
+                this.setCustomValidity('Passwords do not match');
+            } else {
+                this.setCustomValidity('');
+            }
+        });
+    </script>
     <script src="app.js"></script>
 </body>
 </html>
