@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Email Verification Successful</title>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        .success-container {
+            text-align: center;
+            max-width: 500px;
+        }
+        
+        .success-icon {
+            font-size: 4rem;
+            color: #34A853;
+            margin-bottom: 20px;
+        }
+        
+        .redirect-timer {
+            margin-top: 20px;
+            color: #5f6368;
+        }
+    </style>
+</head>
+<body>
+    <div class="container success-container">
+        <div class="success-icon">✓</div>
+        <h1>Email Verified Successfully!</h1>
+        <p>Thank you for verifying your email address. You can now access all features of the application.</p>
+        <button id="continue-btn">Continue to Login</button>
+        <p class="redirect-timer">You'll be redirected automatically in <span id="countdown">5</span> seconds...</p>
+    </div>
+
+    <script>
+        // Start countdown timer
+        let seconds = 5;
+        const countdownElement = document.getElementById('countdown');
+        const countdownInterval = setInterval(() => {
+            seconds--;
+            countdownElement.textContent = seconds;
+            
+            if (seconds <= 0) {
+                clearInterval(countdownInterval);
+                window.location.href = 'index.html';
+            }
+        }, 1000);
+
+        // Handle continue button click
+        document.getElementById('continue-btn').addEventListener('click', () => {
+            clearInterval(countdownInterval);
+            window.location.href = 'index.html';
+        });
+
+        // Handle URL parameters from Appwrite verification
+        const urlParams = new URLSearchParams(window.location.search);
+        const userId = urlParams.get('userId');
+        const secret = urlParams.get('secret');
+
+        if (userId && secret) {
+            // This means we have verification parameters from Appwrite
+            // We can use these to confirm verification on the server side if needed
+            console.log('User verification complete', { userId, secret });
+        }
+    </script>
+</body>
+</html>

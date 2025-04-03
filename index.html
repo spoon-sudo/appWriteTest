@@ -29,6 +29,18 @@
             <p>Already have an account? <a href="#" id="show-login">Login</a></p>
         </div>
 
+        <div id="verification-section" style="display: none;">
+            <h2>Email Verification Required</h2>
+            <div class="verification-info">
+                <p>We've sent a verification email to: <strong><span id="verification-email"></span></strong></p>
+                <p>Please check your inbox and click the verification link to continue.</p>
+                <div class="verification-actions">
+                    <button id="resend-verification" class="btn-secondary">Resend Verification Email</button>
+                    <button id="verification-logout-btn" class="btn-secondary">Logout</button>
+                </div>
+            </div>
+        </div>
+
         <div id="user-section" style="display: none;">
             <h2>Welcome, <span id="user-name"></span>!</h2>
             <p>You're logged in with email: <span id="user-email"></span></p>

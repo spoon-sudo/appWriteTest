@@ -47,3 +47,33 @@ a {
     color: #4285f4;
     text-decoration: none;
 }
+
+/* Verification section styles */
+.verification-info {
+    background-color: #f8f9fa;
+    padding: 15px;
+    border-radius: 6px;
+    border-left: 4px solid #4285f4;
+    margin-bottom: 20px;
+}
+
+.verification-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+.btn-secondary {
+    background-color: #f1f3f4;
+    color: #202124;
+    border: 1px solid #dadce0;
+}
+
+.btn-secondary:hover {
+    background-color: #e8eaed;
+}
+
+#verification-email {
+    color: #4285f4;
+}

@@ -89,7 +89,13 @@ async function checkUserSession() {
         // Then try to get the current user (may fail if not logged in)
         try {
             const user = await account.get();
-            showUserProfile(user);
+            
+            // Check if email is verified
+            if (!user.emailVerification) {
+                showVerificationNeeded(user);
+            } else {
+                showUserProfile(user);
+            }
             console.log("User is logged in:", user);
         } catch (error) {
             if (error.code === 401) {
@@ -104,10 +110,21 @@ async function checkUserSession() {
     }
 }
 
+// Show verification needed screen
+function showVerificationNeeded(user) {
+    document.getElementById('login-section').style.display = 'none';
+    document.getElementById('signup-section').style.display = 'none';
+    document.getElementById('user-section').style.display = 'none';
+    document.getElementById('verification-section').style.display = 'block';
+    
+    document.getElementById('verification-email').textContent = user.email;
+}
+
 // Function to show user profile
 function showUserProfile(user) {
     document.getElementById('login-section').style.display = 'none';
     document.getElementById('signup-section').style.display = 'none';
+    document.getElementById('verification-section').style.display = 'none';
     document.getElementById('user-section').style.display = 'block';
     
     document.getElementById('user-name').textContent = user.name;
@@ -126,7 +143,14 @@ document.getElementById('login-form').addEventListener('submit', async function(
         if (await checkAppwriteConnection()) {
             const session = await account.createEmailSession(email, password);
             const user = await account.get();
-            showUserProfile(user);
+            
+            // Check if email is verified
+            if (!user.emailVerification) {
+                showVerificationNeeded(user);
+                alert("Please verify your email before logging in.");
+            } else {
+                showUserProfile(user);
+            }
         }
     } catch (error) {
         console.error('Login failed', error);
@@ -145,13 +169,33 @@ document.getElementById('signup-form').addEventListener('submit', async function
     try {
         // Check connection before attempting signup
         if (await checkAppwriteConnection()) {
+            // Create user account
             const user = await account.create(ID.unique(), email, password, name);
+            
+            // Create session
             await account.createEmailSession(email, password);
-            showUserProfile(user);
+            
+            // Send verification email
+            await account.createVerification(window.location.origin + '/verification-success.html');
+            
+            // Show verification needed screen
+            showVerificationNeeded(user);
+            alert("We've sent a verification email to your inbox. Please verify your email address to continue.");
         }
     } catch (error) {
         console.error('Signup failed', error);
         alert('Signup failed: ' + error.message + (error.code ? ` (code: ${error.code})` : ''));
+    }
+});
+
+// Event listener for resend verification email
+document.getElementById('resend-verification').addEventListener('click', async function() {
+    try {
+        await account.createVerification(window.location.origin + '/verification-success.html');
+        alert("Verification email has been resent. Please check your inbox.");
+    } catch (error) {
+        console.error('Failed to resend verification email', error);
+        alert('Failed to resend verification email: ' + error.message);
     }
 });
 
@@ -161,6 +205,18 @@ document.getElementById('logout-btn').addEventListener('click', async function()
         await account.deleteSession('current');
         document.getElementById('login-section').style.display = 'block';
         document.getElementById('user-section').style.display = 'none';
+        document.getElementById('verification-section').style.display = 'none';
+    } catch (error) {
+        console.error('Logout failed', error);
+    }
+});
+
+// Event listener for verification logout button
+document.getElementById('verification-logout-btn').addEventListener('click', async function() {
+    try {
+        await account.deleteSession('current');
+        document.getElementById('login-section').style.display = 'block';
+        document.getElementById('verification-section').style.display = 'none';
     } catch (error) {
         console.error('Logout failed', error);
     }
