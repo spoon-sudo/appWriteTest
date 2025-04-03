@@ -37,15 +37,36 @@ const client = new Client()
     .setEndpoint('https://cloud.appwrite.io/v1') // Replace with your Appwrite endpoint
     .setProject('67eea53e001c4b06d031');              // Replace with your project ID
 
+// Create a function to check the connection to Appwrite
+async function checkAppwriteConnection() {
+    try {
+        console.log("Testing connection to Appwrite...");
+        // Add self-signed option to help with potential SSL issues
+        client.setSelfSigned(true);
+        
+        const account = new Account(client);
+        console.log("Account object created, attempting to get account info...");
+        await account.get();
+        console.log("Connection to Appwrite successful!");
+        return true;
+    } catch (error) {
+        console.error("Appwrite connection error:", error);
+        alert("Connection to Appwrite failed. Please check console for details.");
+        return false;
+    }
+}
+
+// Create the account object after checking connection
 const account = new Account(client);
 
 // Check if user is already logged in
 async function checkUserSession() {
     try {
+        await checkAppwriteConnection();
         const user = await account.get();
         showUserProfile(user);
     } catch (error) {
-        console.log('User is not logged in');
+        console.log('User is not logged in:', error.message);
     }
 }
 
@@ -67,9 +88,12 @@ document.getElementById('login-form').addEventListener('submit', async function(
     const password = document.getElementById('login-password').value;
     
     try {
-        const session = await account.createEmailSession(email, password);
-        const user = await account.get();
-        showUserProfile(user);
+        // Check connection before attempting login
+        if (await checkAppwriteConnection()) {
+            const session = await account.createEmailSession(email, password);
+            const user = await account.get();
+            showUserProfile(user);
+        }
     } catch (error) {
         console.error('Login failed', error);
         alert('Login failed: ' + error.message);
@@ -85,12 +109,15 @@ document.getElementById('signup-form').addEventListener('submit', async function
     const password = document.getElementById('signup-password').value;
     
     try {
-        const user = await account.create(ID.unique(), email, password, name);
-        await account.createEmailSession(email, password);
-        showUserProfile(user);
+        // Check connection before attempting signup
+        if (await checkAppwriteConnection()) {
+            const user = await account.create(ID.unique(), email, password, name);
+            await account.createEmailSession(email, password);
+            showUserProfile(user);
+        }
     } catch (error) {
         console.error('Signup failed', error);
-        alert('Signup failed: ' + error.message);
+        alert('Signup failed: ' + error.message + (error.code ? ` (code: ${error.code})` : ''));
     }
 });
 

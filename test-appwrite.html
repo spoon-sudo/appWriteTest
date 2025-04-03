@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Appwrite CORS Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        pre {
+            background: #f4f4f4;
+            padding: 10px;
+            border-radius: 5px;
+            overflow: auto;
+        }
+        button {
+            padding: 8px 12px;
+            background: #4285f4;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background: #fafafa;
+        }
+        .instructions {
+            background: #fffde7;
+            padding: 15px;
+            border-left: 4px solid #ffd600;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Appwrite CORS Test</h1>
+        
+        <div class="instructions">
+            <h2>Instructions for fixing CORS issues:</h2>
+            <ol>
+                <li>Login to your <a href="https://cloud.appwrite.io/console" target="_blank">Appwrite Console</a></li>
+                <li>Go to your project</li>
+                <li>Navigate to <strong>Settings > API Keys</strong></li>
+                <li>Click on the <strong>Platforms</strong> tab</li>
+                <li>Add a new platform with the following information:
+                    <ul>
+                        <li>Name: Local Testing</li>
+                        <li>Type: Website</li>
+                        <li>Hostname: <code id="current-hostname">localhost</code></li>
+                    </ul>
+                </li>
+                <li>Additionally, add a platform for your custom domain:
+                    <ul>
+                        <li>Name: Production</li>
+                        <li>Type: Website</li>
+                        <li>Hostname: <code>gsmeuav.tech</code></li>
+                    </ul>
+                </li>
+                <li>Click the "Test Connection" button below to verify</li>
+            </ol>
+        </div>
+
+        <button id="test-connection">Test Connection</button>
+        <button id="check-platforms">Check Configured Platforms</button>
+        
+        <div class="result" id="result">
+            <p>Results will appear here...</p>
+        </div>
+
+        <h3>Your Current Origin:</h3>
+        <pre id="origin-info"></pre>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/appwrite@11.0.0"></script>
+    <script>
+        // Display current hostname
+        document.getElementById('current-hostname').textContent = window.location.hostname;
+        
+        // Display origin info
+        document.getElementById('origin-info').textContent = `Origin: ${window.location.origin}
+Hostname: ${window.location.hostname}
+Protocol: ${window.location.protocol}
+Port: ${window.location.port || '(default)'}`;
+
+        // Initialize Appwrite client
+        const { Client, Account } = Appwrite;
+        const client = new Client()
+            .setEndpoint('https://cloud.appwrite.io/v1')
+            .setProject('67eea53e001c4b06d031');
+        
+        const account = new Account(client);
+
+        // Test connection
+        document.getElementById('test-connection').addEventListener('click', async () => {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = '<p>Testing connection to Appwrite...</p>';
+            
+            try {
+                // Attempt to call a simple API
+                const response = await fetch('https://cloud.appwrite.io/v1/locale', {
+                    method: 'GET',
+                    headers: {
+                        'X-Appwrite-Project': '67eea53e001c4b06d031',
+                    }
+                });
+                
+                const data = await response.json();
+                resultDiv.innerHTML = `
+                    <h3>Connection Successful! ✅</h3>
+                    <p>This means your domain is properly configured in Appwrite.</p>
+                    <pre>${JSON.stringify(data, null, 2)}</pre>
+                `;
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <h3>Connection Failed! ❌</h3>
+                    <p>This likely means your domain is not properly configured in Appwrite platforms.</p>
+                    <p>Error: ${error.message}</p>
+                    <p>Follow the instructions above to add your domain to the allowed platforms.</p>
+                `;
+                console.error('Test connection error:', error);
+            }
+        });
+
+        // Check platforms
+        document.getElementById('check-platforms').addEventListener('click', async () => {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = '<p>Checking configured platforms...</p>';
+            
+            try {
+                // Try to get account info (will fail if not authorized, but that's expected)
+                await account.get();
+                resultDiv.innerHTML = `
+                    <h3>Platform Check Successful! ✅</h3>
+                    <p>Your domain appears to be correctly configured in Appwrite.</p>
+                `;
+            } catch (error) {
+                if (error.code === 401) {
+                    resultDiv.innerHTML = `
+                        <h3>Authentication Required ⚠️</h3>
+                        <p>You're not logged in, but the CORS headers are being set correctly.</p>
+                        <p>This is a good sign - your domain is properly configured!</p>
+                    `;
+                } else if (error.name === 'AppwriteException') {
+                    resultDiv.innerHTML = `
+                        <h3>Appwrite Error ❌</h3>
+                        <p>Error: ${error.message}</p>
+                        <p>Code: ${error.code}</p>
+                        <p>This may mean your domain is configured but there's another issue.</p>
+                    `;
+                } else if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
+                    resultDiv.innerHTML = `
+                        <h3>CORS Error ❌</h3>
+                        <p>Your domain (${window.location.hostname}) is not configured in Appwrite.</p>
+                        <p>Please follow the instructions above to add your domain.</p>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <h3>Unknown Error ❓</h3>
+                        <p>Error: ${error.message}</p>
+                        <p>Check the console for more details.</p>
+                    `;
+                }
+                console.error('Check platforms error:', error);
+            }
+        });
+    </script>
+</body>
+</html>
