@@ -1,17 +1,18 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Appwrite Auth Demo</title>
+    <title>CloudChat - Messaging App</title>
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
 <body>
-    <div class="auth-container">
+    <!-- Auth Container (Login/Signup) -->
+    <div class="auth-container" id="auth-container">
         <div class="auth-logo">
-            <i class="fas fa-cloud"></i>
-            <h1>CloudApp</h1>
+            <i class="fas fa-comments"></i>
+            <h1>CloudChat</h1>
         </div>
         
         <div class="container">
@@ -29,7 +30,10 @@
                         <input type="password" id="login-password" placeholder="Password" required>
                         <i class="fas fa-eye-slash toggle-password" onclick="togglePasswordVisibility(this)"></i>
                     </div>
-                    <button type="submit" class="btn-primary">Sign In</button>
+                    <button type="submit" class="btn-primary">
+                        <i class="fas fa-sign-in-alt"></i>
+                        Sign In
+                    </button>
                 </form>
                 
                 <div class="auth-footer">
@@ -66,27 +70,144 @@
                         </div>
                         <p id="strength-text">Password strength: Too weak</p>
                     </div>
-                    <button type="submit" class="btn-primary">Create Account</button>
+                    <button type="submit" class="btn-primary">
+                        <i class="fas fa-user-plus"></i>
+                        Create Account
+                    </button>
                 </form>
                 
                 <div class="auth-footer">
                     <p>Already have an account? <a href="#" id="show-login">Sign In</a></p>
                 </div>
             </div>
+        </div>
+    </div>
 
-            <div id="user-section" style="display: none;">
-                <div class="profile-header">
-                    <h2>Welcome, <span id="user-name"></span>!</h2>
-                    <div class="profile-avatar">
-                        <i class="fas fa-user-circle"></i>
-                    </div>
+    <!-- Chat App Container -->
+    <div class="app-container" id="chat-container" style="display: none;">
+        <!-- Sidebar with friends list -->
+        <div class="sidebar">
+            <!-- User profile section -->
+            <div class="user-profile">
+                <div class="profile-avatar">
+                    <i class="fas fa-user"></i>
                 </div>
                 <div class="profile-info">
-                    <p><i class="fas fa-envelope"></i> Email: <span id="user-email"></span></p>
+                    <div class="profile-name" id="current-user-name">User Name</div>
+                    <div class="profile-status">
+                        <span class="status-indicator"></span>
+                        Online
+                    </div>
                 </div>
-                <button id="logout-btn" class="btn-danger"><i class="fas fa-sign-out-alt"></i> Sign Out</button>
+                <div class="app-actions">
+                    <button class="btn-icon" id="add-friend-btn" title="Add Friend">
+                        <i class="fas fa-user-plus"></i>
+                    </button>
+                    <button class="btn-icon" id="logout-btn" title="Logout">
+                        <i class="fas fa-sign-out-alt"></i>
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Friend search -->
+            <div class="friends-container">
+                <div class="friend-search">
+                    <i class="fas fa-search input-icon"></i>
+                    <input type="text" id="friend-search" placeholder="Search friends...">
+                </div>
+                
+                <!-- Friends list -->
+                <div class="friends-list" id="friends-list">
+                    <!-- Friends will be added here dynamically -->
+                </div>
+            </div>
+            
+            <!-- Friend requests -->
+            <div class="friend-requests">
+                <h3>Friend Requests</h3>
+                <div id="friend-requests-list">
+                    <!-- Friend requests will be added here dynamically -->
+                </div>
             </div>
         </div>
+        
+        <!-- Main chat area -->
+        <div class="main-content">
+            <!-- Empty state (shown when no chat is selected) -->
+            <div class="empty-state" id="empty-chat-state">
+                <div class="empty-icon">
+                    <i class="fas fa-comments"></i>
+                </div>
+                <h2 class="empty-text">Select a friend to start chatting</h2>
+                <p>Or add new friends to your contacts</p>
+            </div>
+            
+            <!-- Chat interface (hidden initially) -->
+            <div id="chat-interface" style="display: none;">
+                <div class="chat-header">
+                    <div class="profile-avatar">
+                        <i class="fas fa-user"></i>
+                    </div>
+                    <div class="profile-info">
+                        <div class="profile-name" id="chat-with-name">Friend Name</div>
+                        <div class="profile-status">
+                            <span class="status-indicator"></span>
+                            Online
+                        </div>
+                    </div>
+                    <div class="chat-actions">
+                        <button class="btn-icon" title="Video Call">
+                            <i class="fas fa-video"></i>
+                        </button>
+                        <button class="btn-icon" title="Voice Call">
+                            <i class="fas fa-phone"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="chat-messages" id="chat-messages">
+                    <!-- Messages will be added here dynamically -->
+                </div>
+                
+                <div class="chat-compose">
+                    <button class="btn-icon" title="Attach File">
+                        <i class="fas fa-paperclip"></i>
+                    </button>
+                    <input type="text" class="compose-input" id="message-input" placeholder="Type a message..." autofocus>
+                    <button class="btn-icon" id="send-message" title="Send Message">
+                        <i class="fas fa-paper-plane"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Add Friend Modal -->
+    <div class="modal" id="add-friend-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">Add New Friend</h3>
+                <button class="modal-close" id="close-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p>Enter the email address of the person you want to add as a friend.</p>
+                <div class="input-group">
+                    <i class="fas fa-envelope input-icon"></i>
+                    <input type="email" id="friend-email" placeholder="Friend's email address" required>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-primary" id="send-friend-request">
+                    <i class="fas fa-user-plus"></i>
+                    Send Request
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Dark Mode Toggle -->
+    <div class="dark-mode-toggle" id="dark-mode-toggle" title="Toggle Dark Mode">
+        <i class="fas fa-moon dark-mode-icon" id="dark-mode-icon"></i>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/appwrite@11.0.0"></script>
@@ -144,6 +265,69 @@
                 this.setCustomValidity('Passwords do not match');
             } else {
                 this.setCustomValidity('');
+            }
+        });
+        
+        // Dark mode toggle
+        const darkModeToggle = document.getElementById('dark-mode-toggle');
+        const darkModeIcon = document.getElementById('dark-mode-icon');
+        
+        darkModeToggle.addEventListener('click', () => {
+            const currentTheme = document.documentElement.getAttribute('data-theme');
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            
+            document.documentElement.setAttribute('data-theme', newTheme);
+            
+            // Update icon
+            if (newTheme === 'dark') {
+                darkModeIcon.classList.replace('fa-moon', 'fa-sun');
+            } else {
+                darkModeIcon.classList.replace('fa-sun', 'fa-moon');
+            }
+            
+            // Save preference to localStorage
+            localStorage.setItem('theme', newTheme);
+        });
+        
+        // Check for saved theme preference
+        const savedTheme = localStorage.getItem('theme');
+        if (savedTheme) {
+            document.documentElement.setAttribute('data-theme', savedTheme);
+            if (savedTheme === 'dark') {
+                darkModeIcon.classList.replace('fa-moon', 'fa-sun');
+            }
+        }
+        
+        // Toggle between login and signup forms
+        document.getElementById('show-signup').addEventListener('click', function(e) {
+            e.preventDefault();
+            document.getElementById('login-section').style.display = 'none';
+            document.getElementById('signup-section').style.display = 'block';
+        });
+
+        document.getElementById('show-login').addEventListener('click', function(e) {
+            e.preventDefault();
+            document.getElementById('login-section').style.display = 'block';
+            document.getElementById('signup-section').style.display = 'none';
+        });
+        
+        // Handle modal
+        const addFriendBtn = document.getElementById('add-friend-btn');
+        const closeModalBtn = document.getElementById('close-modal');
+        const addFriendModal = document.getElementById('add-friend-modal');
+        
+        addFriendBtn.addEventListener('click', () => {
+            addFriendModal.classList.add('active');
+        });
+        
+        closeModalBtn.addEventListener('click', () => {
+            addFriendModal.classList.remove('active');
+        });
+        
+        // Close modal when clicking outside
+        window.addEventListener('click', (e) => {
+            if (e.target === addFriendModal) {
+                addFriendModal.classList.remove('active');
             }
         });
     </script>

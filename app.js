@@ -1,5 +1,15 @@
 // Initialize Appwrite SDK
-const { Client, Account, ID } = Appwrite;
+const { Client, Account, ID, Databases, Query } = Appwrite;
+
+// App config
+const config = {
+    endpoint: 'https://cloud.appwrite.io/v1',
+    projectId: '67eea53e001c4b06d031',
+    databaseId: 'cloudchat-db',
+    friendsCollectionId: 'friends',
+    messagesCollectionId: 'messages',
+    usersCollectionId: 'users'
+};
 
 // Configure allowed origins for Appwrite
 const ALLOWED_ORIGINS = [
@@ -33,115 +43,725 @@ function handleOrigin() {
 // Run the origin check immediately
 handleOrigin();
 
+// Initialize Appwrite client
 const client = new Client()
-    .setEndpoint('https://cloud.appwrite.io/v1')
-    .setProject('67eea53e001c4b06d031');
+    .setEndpoint(config.endpoint)
+    .setProject(config.projectId);
 
-// Create the account object
+// Create service instances
 const account = new Account(client);
+const databases = new Databases(client);
 
-// Create a function to check the connection to Appwrite
-async function checkAppwriteConnection() {
+// App state
+const state = {
+    currentUser: null,
+    friends: [],
+    friendRequests: [],
+    currentChat: null,
+    messages: [],
+    darkMode: localStorage.getItem('theme') === 'dark'
+};
+
+// DOM elements
+const elements = {
+    authContainer: document.getElementById('auth-container'),
+    chatContainer: document.getElementById('chat-container'),
+    loginForm: document.getElementById('login-form'),
+    signupForm: document.getElementById('signup-form'),
+    currentUserName: document.getElementById('current-user-name'),
+    friendsList: document.getElementById('friends-list'),
+    friendRequestsList: document.getElementById('friend-requests-list'),
+    messageInput: document.getElementById('message-input'),
+    sendMessage: document.getElementById('send-message'),
+    chatMessages: document.getElementById('chat-messages'),
+    chatInterface: document.getElementById('chat-interface'),
+    emptyChat: document.getElementById('empty-chat-state'),
+    chatWithName: document.getElementById('chat-with-name'),
+    friendSearch: document.getElementById('friend-search'),
+    addFriendModal: document.getElementById('add-friend-modal'),
+    friendEmail: document.getElementById('friend-email'),
+    sendFriendRequest: document.getElementById('send-friend-request'),
+    logoutBtn: document.getElementById('logout-btn')
+};
+
+// Initialize app
+async function initApp() {
     try {
-        console.log("Testing connection to Appwrite...");
-        
-        // Use a public API endpoint like locale
-        const response = await fetch('https://cloud.appwrite.io/v1/locale', {
-            method: 'GET',
-            headers: {
-                'X-Appwrite-Project': '67eea53e001c4b06d031',
-            }
-        });
-        
-        if (response.ok) {
-            console.log("Connection to Appwrite successful!");
-            return true;
-        } else {
-            const errorData = await response.json();
-            console.error("Appwrite API error:", errorData);
-            return false;
-        }
+        // Check if user is already logged in
+        const user = await account.get();
+        state.currentUser = user;
+        showChatInterface();
+        await loadUserData();
     } catch (error) {
-        console.error("Appwrite connection error:", error);
-        
-        // Show different messages based on error type
-        if (error.message && error.message.includes('Failed to fetch')) {
-            alert("Connection to Appwrite failed due to a CORS issue. Please make sure your domain is registered in the Appwrite console.");
-        } else {
-            alert("Connection to Appwrite failed: " + error.message);
-        }
-        
-        return false;
+        // User is not logged in, show auth interface
+        console.log('User is not logged in:', error.message);
+        showAuthInterface();
     }
 }
 
-// Check if user is already logged in
-async function checkUserSession() {
+// Show auth interface
+function showAuthInterface() {
+    elements.authContainer.style.display = 'flex';
+    elements.chatContainer.style.display = 'none';
+}
+
+// Show chat interface
+function showChatInterface() {
+    elements.authContainer.style.display = 'none';
+    elements.chatContainer.style.display = 'flex';
+    elements.currentUserName.textContent = state.currentUser.name;
+}
+
+// Load user data (friends, messages, etc.)
+async function loadUserData() {
+    await Promise.all([
+        loadFriends(),
+        loadFriendRequests()
+    ]);
+    
+    // Set up real-time listeners
+    setupRealtimeListeners();
+}
+
+// Load friends list
+async function loadFriends() {
     try {
-        // First check if we can connect to Appwrite
-        const connectionOk = await checkAppwriteConnection();
-        if (!connectionOk) {
-            console.log("Couldn't establish connection to Appwrite");
+        // Create collections if they don't exist
+        await ensureDatabaseSetup();
+
+        // Find all friend relationships where the user is involved
+        const response = await databases.listDocuments(
+            config.databaseId,
+            config.friendsCollectionId,
+            [
+                Query.equal('status', 'accepted'),
+                Query.orQueries([
+                    Query.equal('user1Id', state.currentUser.$id),
+                    Query.equal('user2Id', state.currentUser.$id)
+                ])
+            ]
+        );
+        
+        state.friends = [];
+        elements.friendsList.innerHTML = '';
+        
+        // Process each friend relationship
+        if (response.documents.length > 0) {
+            // Get user details for each friend
+            for (const friendship of response.documents) {
+                // Determine which user ID is the friend
+                const friendId = friendship.user1Id === state.currentUser.$id 
+                    ? friendship.user2Id 
+                    : friendship.user1Id;
+                
+                try {
+                    // Get friend user info from users collection
+                    const friendUser = await databases.getDocument(
+                        config.databaseId,
+                        config.usersCollectionId,
+                        friendId
+                    );
+                    
+                    // Add to state
+                    state.friends.push({
+                        id: friendId,
+                        name: friendUser.name,
+                        email: friendUser.email,
+                        friendshipId: friendship.$id
+                    });
+                    
+                    // Add to UI
+                    renderFriendItem(friendUser);
+                } catch (error) {
+                    console.error('Error loading friend:', error);
+                }
+            }
+        } else {
+            elements.friendsList.innerHTML = '<p>No friends yet. Add friends to start chatting!</p>';
+        }
+    } catch (error) {
+        console.error('Error loading friends:', error);
+    }
+}
+
+// Load friend requests
+async function loadFriendRequests() {
+    try {
+        const response = await databases.listDocuments(
+            config.databaseId,
+            config.friendsCollectionId,
+            [
+                Query.equal('user2Id', state.currentUser.$id),
+                Query.equal('status', 'pending')
+            ]
+        );
+        
+        state.friendRequests = [];
+        elements.friendRequestsList.innerHTML = '';
+        
+        if (response.documents.length > 0) {
+            for (const request of response.documents) {
+                try {
+                    // Get requester user info
+                    const requesterUser = await databases.getDocument(
+                        config.databaseId,
+                        config.usersCollectionId,
+                        request.user1Id
+                    );
+                    
+                    // Add to state
+                    state.friendRequests.push({
+                        id: request.$id,
+                        userId: requesterUser.$id,
+                        name: requesterUser.name,
+                        email: requesterUser.email
+                    });
+                    
+                    // Add to UI
+                    renderFriendRequest(requesterUser, request.$id);
+                } catch (error) {
+                    console.error('Error loading friend request:', error);
+                }
+            }
+        } else {
+            elements.friendRequestsList.innerHTML = '<p>No pending requests</p>';
+        }
+    } catch (error) {
+        console.error('Error loading friend requests:', error);
+    }
+}
+
+// Set up real-time listeners for messages and friend requests
+function setupRealtimeListeners() {
+    // For now, we'll poll for new messages and requests periodically
+    
+    // Poll for new messages every 5 seconds if in a chat
+    setInterval(() => {
+        if (state.currentChat) {
+            loadMessages(state.currentChat);
+        }
+    }, 5000);
+    
+    // Poll for new friend requests every 15 seconds
+    setInterval(() => {
+        loadFriendRequests();
+    }, 15000);
+}
+
+// Load messages for a chat
+async function loadMessages(friendId) {
+    try {
+        const response = await databases.listDocuments(
+            config.databaseId,
+            config.messagesCollectionId,
+            [
+                Query.orQueries([
+                    Query.andQueries([
+                        Query.equal('senderId', state.currentUser.$id),
+                        Query.equal('receiverId', friendId)
+                    ]),
+                    Query.andQueries([
+                        Query.equal('senderId', friendId),
+                        Query.equal('receiverId', state.currentUser.$id)
+                    ])
+                ]),
+                Query.orderDesc('$createdAt')
+            ],
+            100 // Limit to 100 messages
+        );
+        
+        state.messages = response.documents.reverse(); // Reverse to show oldest first
+        renderMessages();
+    } catch (error) {
+        console.error('Error loading messages:', error);
+    }
+}
+
+// Render a friend item in the sidebar
+function renderFriendItem(friendUser) {
+    const friendItem = document.createElement('div');
+    friendItem.className = 'friend-item';
+    friendItem.dataset.userId = friendUser.$id;
+    
+    const firstInitial = friendUser.name.charAt(0).toUpperCase();
+    
+    friendItem.innerHTML = `
+        <div class="friend-avatar">${firstInitial}</div>
+        <div class="friend-info">
+            <div class="friend-name">${friendUser.name}</div>
+            <div class="friend-status">
+                <span class="status-indicator"></span>
+                Online
+            </div>
+        </div>
+    `;
+    
+    friendItem.addEventListener('click', () => {
+        // Open chat with this friend
+        openChat(friendUser.$id, friendUser.name);
+    });
+    
+    elements.friendsList.appendChild(friendItem);
+}
+
+// Render a friend request
+function renderFriendRequest(requesterUser, requestId) {
+    const requestItem = document.createElement('div');
+    requestItem.className = 'request-item';
+    
+    const firstInitial = requesterUser.name.charAt(0).toUpperCase();
+    
+    requestItem.innerHTML = `
+        <div class="friend-avatar">${firstInitial}</div>
+        <div class="request-info">
+            <div class="friend-name">${requesterUser.name}</div>
+            <div class="friend-status">${requesterUser.email}</div>
+        </div>
+        <div class="request-actions">
+            <button class="btn-primary accept-request" data-request-id="${requestId}">Accept</button>
+            <button class="btn-danger reject-request" data-request-id="${requestId}">Reject</button>
+        </div>
+    `;
+    
+    // Add event listeners for accept/reject buttons
+    requestItem.querySelector('.accept-request').addEventListener('click', () => {
+        acceptFriendRequest(requestId);
+    });
+    
+    requestItem.querySelector('.reject-request').addEventListener('click', () => {
+        rejectFriendRequest(requestId);
+    });
+    
+    elements.friendRequestsList.appendChild(requestItem);
+}
+
+// Render messages in the chat
+function renderMessages() {
+    elements.chatMessages.innerHTML = '';
+    let currentDate = null;
+    
+    state.messages.forEach(message => {
+        // Check if we need to add a date separator
+        const messageDate = new Date(message.$createdAt);
+        const formattedDate = messageDate.toLocaleDateString();
+        
+        if (formattedDate !== currentDate) {
+            currentDate = formattedDate;
+            const dateSeparator = document.createElement('div');
+            dateSeparator.className = 'message-date';
+            dateSeparator.textContent = formattedDate;
+            elements.chatMessages.appendChild(dateSeparator);
+        }
+        
+        const messageEl = document.createElement('div');
+        const isSentByMe = message.senderId === state.currentUser.$id;
+        messageEl.className = `message-bubble ${isSentByMe ? 'message-sent' : 'message-received'}`;
+        
+        const time = messageDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        
+        messageEl.innerHTML = `
+            <div class="message-content">${message.content}</div>
+            <div class="message-time">${time}</div>
+        `;
+        
+        elements.chatMessages.appendChild(messageEl);
+    });
+    
+    // Scroll to bottom
+    elements.chatMessages.scrollTop = elements.chatMessages.scrollHeight;
+}
+
+// Open chat with a friend
+function openChat(friendId, friendName) {
+    // Update current chat
+    state.currentChat = friendId;
+    elements.chatWithName.textContent = friendName;
+    
+    // Update UI
+    elements.chatInterface.style.display = 'flex';
+    elements.emptyChat.style.display = 'none';
+    
+    // Make friend item active
+    const friendItems = elements.friendsList.querySelectorAll('.friend-item');
+    friendItems.forEach(item => {
+        if (item.dataset.userId === friendId) {
+            item.classList.add('active');
+        } else {
+            item.classList.remove('active');
+        }
+    });
+    
+    // Load messages
+    loadMessages(friendId);
+    
+    // Focus message input
+    elements.messageInput.focus();
+}
+
+// Send a message
+async function sendMessage() {
+    const content = elements.messageInput.value.trim();
+    
+    if (!content || !state.currentChat) return;
+    
+    try {
+        const message = {
+            senderId: state.currentUser.$id,
+            receiverId: state.currentChat,
+            content: content,
+            status: 'sent'
+        };
+        
+        await databases.createDocument(
+            config.databaseId,
+            config.messagesCollectionId,
+            ID.unique(),
+            message
+        );
+        
+        // Clear input
+        elements.messageInput.value = '';
+        
+        // Reload messages
+        loadMessages(state.currentChat);
+    } catch (error) {
+        console.error('Error sending message:', error);
+        alert('Failed to send message. Please try again.');
+    }
+}
+
+// Send friend request
+async function sendFriendRequest() {
+    const email = elements.friendEmail.value.trim();
+    
+    if (!email) return;
+    
+    try {
+        // Find user by email
+        const response = await databases.listDocuments(
+            config.databaseId,
+            config.usersCollectionId,
+            [Query.equal('email', email)]
+        );
+        
+        if (response.documents.length === 0) {
+            alert('User not found. Please check the email address.');
             return;
         }
         
-        // Then try to get the current user (may fail if not logged in)
-        try {
-            const user = await account.get();
-            console.log("User logged in:", user);
-            showUserProfile(user);
-        } catch (error) {
-            if (error.code === 401) {
-                console.log("User is not logged in (expected behavior)");
-                // This is normal for not logged in users, don't show an error
-                document.getElementById('login-section').style.display = 'block';
-            } else {
-                console.error("Error getting user session:", error);
-            }
+        const user = response.documents[0];
+        
+        // Check if user is trying to add themself
+        if (user.$id === state.currentUser.$id) {
+            alert('You cannot add yourself as a friend.');
+            return;
         }
+        
+        // Check if already friends or pending
+        const existingFriendship = await databases.listDocuments(
+            config.databaseId,
+            config.friendsCollectionId,
+            [
+                Query.orQueries([
+                    Query.andQueries([
+                        Query.equal('user1Id', state.currentUser.$id),
+                        Query.equal('user2Id', user.$id)
+                    ]),
+                    Query.andQueries([
+                        Query.equal('user1Id', user.$id),
+                        Query.equal('user2Id', state.currentUser.$id)
+                    ])
+                ])
+            ]
+        );
+        
+        if (existingFriendship.documents.length > 0) {
+            const status = existingFriendship.documents[0].status;
+            if (status === 'accepted') {
+                alert('You are already friends with this user.');
+            } else {
+                alert('A friend request is already pending with this user.');
+            }
+            return;
+        }
+        
+        // Create friend request
+        await databases.createDocument(
+            config.databaseId,
+            config.friendsCollectionId,
+            ID.unique(),
+            {
+                user1Id: state.currentUser.$id, // Sender
+                user2Id: user.$id, // Receiver
+                status: 'pending'
+            }
+        );
+        
+        // Close modal and show success
+        elements.addFriendModal.classList.remove('active');
+        elements.friendEmail.value = '';
+        alert('Friend request sent successfully!');
     } catch (error) {
-        console.error("Error in checkUserSession:", error);
+        console.error('Error sending friend request:', error);
+        alert('Failed to send friend request. Please try again.');
     }
 }
 
-// Function to show user profile
-function showUserProfile(user) {
-    document.getElementById('login-section').style.display = 'none';
-    document.getElementById('signup-section').style.display = 'none';
-    document.getElementById('user-section').style.display = 'block';
-    
-    document.getElementById('user-name').textContent = user.name;
-    document.getElementById('user-email').textContent = user.email;
+// Accept friend request
+async function acceptFriendRequest(requestId) {
+    try {
+        await databases.updateDocument(
+            config.databaseId,
+            config.friendsCollectionId,
+            requestId,
+            { status: 'accepted' }
+        );
+        
+        alert('Friend request accepted!');
+        
+        // Reload data
+        await Promise.all([
+            loadFriends(),
+            loadFriendRequests()
+        ]);
+    } catch (error) {
+        console.error('Error accepting friend request:', error);
+        alert('Failed to accept friend request. Please try again.');
+    }
 }
 
-// Event listener for login form
-document.getElementById('login-form').addEventListener('submit', async function(e) {
+// Reject friend request
+async function rejectFriendRequest(requestId) {
+    try {
+        await databases.deleteDocument(
+            config.databaseId,
+            config.friendsCollectionId,
+            requestId
+        );
+        
+        alert('Friend request rejected.');
+        await loadFriendRequests();
+    } catch (error) {
+        console.error('Error rejecting friend request:', error);
+        alert('Failed to reject friend request. Please try again.');
+    }
+}
+
+// Create user in users collection after signup
+async function createUserDocument(user) {
+    try {
+        await databases.createDocument(
+            config.databaseId,
+            config.usersCollectionId,
+            user.$id,
+            {
+                name: user.name,
+                email: user.email
+            }
+        );
+    } catch (error) {
+        console.error('Error creating user document:', error);
+    }
+}
+
+// Ensure database and collections exist
+async function ensureDatabaseSetup() {
+    try {
+        // Check if collections exist by trying to list documents
+        try {
+            await databases.listDocuments(
+                config.databaseId,
+                config.usersCollectionId
+            );
+            console.log("Database collections already exist");
+            return;
+        } catch (error) {
+            console.log('Setting up database for first use...');
+        }
+            
+        // Create database if not exists
+        try {
+            await databases.create(
+                config.databaseId,
+                'CloudChat Database'
+            );
+            console.log('Database created');
+        } catch (dbError) {
+            // Database might already exist
+            console.log('Database exists or error:', dbError);
+        }
+        
+        // Create collections with delay between each to prevent rate limiting
+        try {
+            // Create users collection
+            await databases.createCollection(
+                config.databaseId,
+                config.usersCollectionId,
+                'Users'
+            );
+            
+            console.log('Users collection created');
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            await databases.createStringAttribute(
+                config.databaseId, 
+                config.usersCollectionId, 
+                'name', 
+                255, 
+                true
+            );
+            
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            await databases.createEmailAttribute(
+                config.databaseId, 
+                config.usersCollectionId, 
+                'email', 
+                true
+            );
+            
+            console.log('Users attributes created');
+        } catch (collectionError) {
+            console.log('Users collection exists or error:', collectionError);
+        }
+        
+        try {
+            // Create friends collection
+            await databases.createCollection(
+                config.databaseId,
+                config.friendsCollectionId,
+                'Friends'
+            );
+            
+            console.log('Friends collection created');
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            await databases.createStringAttribute(
+                config.databaseId, 
+                config.friendsCollectionId, 
+                'user1Id', 
+                36, 
+                true
+            );
+            
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            await databases.createStringAttribute(
+                config.databaseId, 
+                config.friendsCollectionId, 
+                'user2Id', 
+                36, 
+                true
+            );
+            
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            await databases.createEnumAttribute(
+                config.databaseId, 
+                config.friendsCollectionId, 
+                'status', 
+                ['pending', 'accepted', 'rejected'],
+                true
+            );
+            
+            console.log('Friends attributes created');
+        } catch (collectionError) {
+            console.log('Friends collection exists or error:', collectionError);
+        }
+        
+        try {
+            // Create messages collection
+            await databases.createCollection(
+                config.databaseId,
+                config.messagesCollectionId,
+                'Messages'
+            );
+            
+            console.log('Messages collection created');
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            await databases.createStringAttribute(
+                config.databaseId, 
+                config.messagesCollectionId, 
+                'senderId', 
+                36, 
+                true
+            );
+            
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            await databases.createStringAttribute(
+                config.databaseId, 
+                config.messagesCollectionId, 
+                'receiverId', 
+                36, 
+                true
+            );
+            
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            await databases.createStringAttribute(
+                config.databaseId, 
+                config.messagesCollectionId, 
+                'content', 
+                4096, 
+                true
+            );
+            
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            await databases.createEnumAttribute(
+                config.databaseId, 
+                config.messagesCollectionId, 
+                'status', 
+                ['sent', 'delivered', 'read'],
+                true
+            );
+            
+            console.log('Messages attributes created');
+        } catch (collectionError) {
+            console.log('Messages collection exists or error:', collectionError);
+        }
+        
+        // Wait for the database and collections to be ready
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        console.log('Database setup completed');
+        
+    } catch (error) {
+        console.error('Error setting up database:', error);
+    }
+}
+
+// Event Listeners
+// Login form
+elements.loginForm.addEventListener('submit', async function(e) {
     e.preventDefault();
     
     const email = document.getElementById('login-email').value;
     const password = document.getElementById('login-password').value;
     
     try {
-        // Check connection before attempting login
-        if (await checkAppwriteConnection()) {
-            // Create session
-            await account.createEmailSession(email, password);
-            
-            // Get user data
-            const user = await account.get();
-            console.log("Login successful:", user);
-            
-            // Show user profile
-            showUserProfile(user);
-        }
+        // Create session
+        await account.createEmailSession(email, password);
+        
+        // Get user data
+        const user = await account.get();
+        state.currentUser = user;
+        
+        // Ensure database setup
+        await ensureDatabaseSetup();
+        
+        // Show chat interface and load data
+        showChatInterface();
+        await loadUserData();
     } catch (error) {
         console.error('Login failed', error);
         alert('Login failed: ' + error.message);
     }
 });
 
-// Event listener for signup form
-document.getElementById('signup-form').addEventListener('submit', async function(e) {
+// Signup form
+elements.signupForm.addEventListener('submit', async function(e) {
     e.preventDefault();
     
     const name = document.getElementById('signup-name').value;
@@ -156,24 +776,28 @@ document.getElementById('signup-form').addEventListener('submit', async function
     }
     
     try {
-        // Check connection before attempting signup
-        if (await checkAppwriteConnection()) {
-            // Create user account
-            const user = await account.create(ID.unique(), email, password, name);
-            console.log("User created:", user);
-            
-            // Create session and log in automatically
-            await account.createEmailSession(email, password);
-            
-            // Get updated user data
-            const loggedInUser = await account.get();
-            
-            // Show user profile
-            showUserProfile(loggedInUser);
-            
-            // Success message
-            alert("Account created successfully! You're now logged in.");
-        }
+        // Ensure database setup
+        await ensureDatabaseSetup();
+        
+        // Create user account
+        const user = await account.create(ID.unique(), email, password, name);
+        console.log("User created:", user);
+        
+        // Create session and log in automatically
+        await account.createEmailSession(email, password);
+        
+        // Get user data
+        state.currentUser = await account.get();
+        
+        // Create user document
+        await createUserDocument(state.currentUser);
+        
+        // Show chat interface and load data
+        showChatInterface();
+        await loadUserData();
+        
+        // Success message
+        alert("Account created successfully!");
     } catch (error) {
         console.error('Signup failed', error);
         
@@ -186,30 +810,51 @@ document.getElementById('signup-form').addEventListener('submit', async function
     }
 });
 
-// Event listener for logout button
-document.getElementById('logout-btn').addEventListener('click', async function() {
+// Logout button
+elements.logoutBtn.addEventListener('click', async function() {
     try {
         await account.deleteSession('current');
-        document.getElementById('login-section').style.display = 'block';
-        document.getElementById('user-section').style.display = 'none';
+        state.currentUser = null;
+        state.friends = [];
+        state.friendRequests = [];
+        state.messages = [];
+        state.currentChat = null;
+        
+        showAuthInterface();
     } catch (error) {
         console.error('Logout failed', error);
         alert('Logout failed: ' + error.message);
     }
 });
 
-// Toggle between login and signup forms
-document.getElementById('show-signup').addEventListener('click', function(e) {
-    e.preventDefault();
-    document.getElementById('login-section').style.display = 'none';
-    document.getElementById('signup-section').style.display = 'block';
+// Send message button
+elements.sendMessage.addEventListener('click', sendMessage);
+
+// Message input (send on Enter)
+elements.messageInput.addEventListener('keypress', function(e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+    }
 });
 
-document.getElementById('show-login').addEventListener('click', function(e) {
-    e.preventDefault();
-    document.getElementById('login-section').style.display = 'block';
-    document.getElementById('signup-section').style.display = 'none';
+// Friend search
+elements.friendSearch.addEventListener('input', function() {
+    const query = this.value.toLowerCase();
+    const friendItems = elements.friendsList.querySelectorAll('.friend-item');
+    
+    friendItems.forEach(item => {
+        const name = item.querySelector('.friend-name').textContent.toLowerCase();
+        if (name.includes(query)) {
+            item.style.display = 'flex';
+        } else {
+            item.style.display = 'none';
+        }
+    });
 });
 
-// Check user session on page load
-document.addEventListener('DOMContentLoaded', checkUserSession);
+// Send friend request button
+elements.sendFriendRequest.addEventListener('click', sendFriendRequest);
+
+// Initialize the app when DOM is loaded
+document.addEventListener('DOMContentLoaded', initApp);
