@@ -21,47 +21,103 @@
             margin-top: 20px;
             color: #5f6368;
         }
+
+        .error-message {
+            color: #d93025;
+            background: #fce8e6;
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 20px;
+            display: none;
+        }
     </style>
 </head>
 <body>
     <div class="container success-container">
         <div class="success-icon">✓</div>
-        <h1>Email Verified Successfully!</h1>
-        <p>Thank you for verifying your email address. You can now access all features of the application.</p>
-        <button id="continue-btn">Continue to Login</button>
-        <p class="redirect-timer">You'll be redirected automatically in <span id="countdown">5</span> seconds...</p>
+        <h1>Email Verification Process</h1>
+        <p id="status-message">Completing your email verification...</p>
+        <div class="error-message" id="error-message"></div>
+        <button id="continue-btn" style="display: none;">Continue to Login</button>
+        <p class="redirect-timer" id="redirect-timer" style="display: none;">You'll be redirected automatically in <span id="countdown">5</span> seconds...</p>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/appwrite@11.0.0"></script>
     <script>
-        // Start countdown timer
-        let seconds = 5;
-        const countdownElement = document.getElementById('countdown');
-        const countdownInterval = setInterval(() => {
-            seconds--;
-            countdownElement.textContent = seconds;
-            
-            if (seconds <= 0) {
-                clearInterval(countdownInterval);
-                window.location.href = 'index.html';
-            }
-        }, 1000);
-
-        // Handle continue button click
-        document.getElementById('continue-btn').addEventListener('click', () => {
-            clearInterval(countdownInterval);
-            window.location.href = 'index.html';
-        });
-
-        // Handle URL parameters from Appwrite verification
+        // Initialize Appwrite client
+        const { Client, Account } = Appwrite;
+        
+        const client = new Client()
+            .setEndpoint('https://cloud.appwrite.io/v1')
+            .setProject('67eea53e001c4b06d031');
+        
+        const account = new Account(client);
+        
+        // Get URL parameters
         const urlParams = new URLSearchParams(window.location.search);
         const userId = urlParams.get('userId');
         const secret = urlParams.get('secret');
-
-        if (userId && secret) {
-            // This means we have verification parameters from Appwrite
-            // We can use these to confirm verification on the server side if needed
-            console.log('User verification complete', { userId, secret });
+        
+        // Status elements
+        const statusMessage = document.getElementById('status-message');
+        const errorMessage = document.getElementById('error-message');
+        const continueBtn = document.getElementById('continue-btn');
+        const redirectTimer = document.getElementById('redirect-timer');
+        
+        // Complete the verification
+        async function completeVerification() {
+            if (!userId || !secret) {
+                showError('Missing verification parameters. Please check your email link and try again.');
+                return;
+            }
+            
+            try {
+                // Call Appwrite API to confirm the verification
+                await account.updateVerification(userId, secret);
+                
+                // Show success and start redirect countdown
+                statusMessage.textContent = 'Email verification completed successfully! You can now log in.';
+                continueBtn.style.display = 'block';
+                redirectTimer.style.display = 'block';
+                
+                // Start countdown
+                startCountdown();
+            } catch (error) {
+                console.error('Error completing verification:', error);
+                showError('Verification failed: ' + error.message);
+            }
         }
+        
+        // Show error message
+        function showError(message) {
+            errorMessage.textContent = message;
+            errorMessage.style.display = 'block';
+            statusMessage.textContent = 'Verification could not be completed.';
+            continueBtn.style.display = 'block';
+        }
+        
+        // Start countdown timer
+        function startCountdown() {
+            let seconds = 5;
+            const countdownElement = document.getElementById('countdown');
+            const countdownInterval = setInterval(() => {
+                seconds--;
+                countdownElement.textContent = seconds;
+                
+                if (seconds <= 0) {
+                    clearInterval(countdownInterval);
+                    window.location.href = 'index.html';
+                }
+            }, 1000);
+        }
+
+        // Handle continue button click
+        document.getElementById('continue-btn').addEventListener('click', () => {
+            window.location.href = 'index.html';
+        });
+
+        // Run the verification on page load
+        completeVerification();
     </script>
 </body>
 </html>

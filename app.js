@@ -73,7 +73,7 @@ async function checkAppwriteConnection() {
     }
 }
 
-// Create the account object after checking connection
+// Create the account object
 const account = new Account(client);
 
 // Check if user is already logged in
@@ -89,11 +89,17 @@ async function checkUserSession() {
         // Then try to get the current user (may fail if not logged in)
         try {
             const user = await account.get();
+            console.log("User data:", user);
+            
+            // Debug log to check verification status
+            console.log("Email verification status:", user.emailVerification);
             
             // Check if email is verified
-            if (!user.emailVerification) {
+            if (user.emailVerification === false) {
+                console.log("Email is not verified, showing verification screen");
                 showVerificationNeeded(user);
             } else {
+                console.log("Email is verified, showing profile");
                 showUserProfile(user);
             }
             console.log("User is logged in:", user);
@@ -144,11 +150,24 @@ document.getElementById('login-form').addEventListener('submit', async function(
             const session = await account.createEmailSession(email, password);
             const user = await account.get();
             
+            console.log("Login successful, user data:", user);
+            console.log("Email verification status:", user.emailVerification);
+            
             // Check if email is verified
-            if (!user.emailVerification) {
+            if (user.emailVerification === false) {
+                console.log("Email is not verified, showing verification screen");
                 showVerificationNeeded(user);
-                alert("Please verify your email before logging in.");
+                alert("Please verify your email before accessing all features.");
+                
+                // Re-send verification email for convenience
+                try {
+                    await account.createVerification(window.location.origin + '/verification-success.html');
+                    console.log("Verification email sent");
+                } catch (verifyError) {
+                    console.error("Error sending verification email:", verifyError);
+                }
             } else {
+                console.log("Email is verified, showing profile");
                 showUserProfile(user);
             }
         }
@@ -171,12 +190,14 @@ document.getElementById('signup-form').addEventListener('submit', async function
         if (await checkAppwriteConnection()) {
             // Create user account
             const user = await account.create(ID.unique(), email, password, name);
+            console.log("User created:", user);
             
             // Create session
             await account.createEmailSession(email, password);
             
             // Send verification email
             await account.createVerification(window.location.origin + '/verification-success.html');
+            console.log("Verification email sent");
             
             // Show verification needed screen
             showVerificationNeeded(user);
@@ -192,6 +213,7 @@ document.getElementById('signup-form').addEventListener('submit', async function
 document.getElementById('resend-verification').addEventListener('click', async function() {
     try {
         await account.createVerification(window.location.origin + '/verification-success.html');
+        console.log("Verification email resent");
         alert("Verification email has been resent. Please check your inbox.");
     } catch (error) {
         console.error('Failed to resend verification email', error);
