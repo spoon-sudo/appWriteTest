@@ -1,16 +1,37 @@
 // Initialize Appwrite SDK
 const { Client, Account, ID } = Appwrite;
 
-// Check if we're using 127.0.0.1 instead of localhost and redirect if needed
-function checkAndRedirectToLocalhost() {
-    if (window.location.hostname === '127.0.0.1') {
+// Configure allowed origins for Appwrite
+const ALLOWED_ORIGINS = [
+    'http://localhost:5500',
+    'http://127.0.0.1:5500',
+    'https://gsmeuav.tech'
+];
+
+// Check if current origin is allowed or redirect to a preferred origin
+function handleOrigin() {
+    const currentOrigin = window.location.origin;
+    
+    // If we're on the custom domain, it's already fine
+    if (currentOrigin === 'https://gsmeuav.tech') {
+        return;
+    }
+    
+    // If we're on 127.0.0.1, redirect to localhost
+    if (currentOrigin === 'http://127.0.0.1:5500') {
         const newUrl = window.location.href.replace('127.0.0.1', 'localhost');
         window.location.replace(newUrl);
+        return;
+    }
+    
+    // Check if we're on an allowed origin
+    if (!ALLOWED_ORIGINS.includes(currentOrigin)) {
+        console.warn('Running on an origin not configured in Appwrite:', currentOrigin);
     }
 }
 
-// Run the check immediately
-checkAndRedirectToLocalhost();
+// Run the origin check immediately
+handleOrigin();
 
 const client = new Client()
     .setEndpoint('https://cloud.appwrite.io/v1') // Replace with your Appwrite endpoint
