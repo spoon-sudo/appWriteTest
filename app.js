@@ -37,6 +37,9 @@ const client = new Client()
     .setEndpoint('https://cloud.appwrite.io/v1') // Replace with your Appwrite endpoint
     .setProject('67eea53e001c4b06d031');              // Replace with your project ID
 
+// Create the account object
+const account = new Account(client);
+
 // Create a function to check the connection to Appwrite
 async function checkAppwriteConnection() {
     try {
@@ -73,8 +76,28 @@ async function checkAppwriteConnection() {
     }
 }
 
-// Create the account object
-const account = new Account(client);
+// Check if user's email is verified
+async function checkEmailVerification(user) {
+    // Make sure we're looking at the exact verification status
+    console.log("Raw user data:", JSON.stringify(user, null, 2));
+    
+    if (user.emailVerification !== true) {
+        console.log("Email is NOT verified for user:", user.$id);
+        return false;
+    }
+    
+    console.log("Email is verified for user:", user.$id);
+    return true;
+}
+
+// Force logout if email is not verified
+async function enforceVerification(user) {
+    if (!await checkEmailVerification(user)) {
+        showVerificationNeeded(user);
+        return false;
+    }
+    return true;
+}
 
 // Check if user is already logged in
 async function checkUserSession() {
@@ -91,18 +114,10 @@ async function checkUserSession() {
             const user = await account.get();
             console.log("User data:", user);
             
-            // Debug log to check verification status
-            console.log("Email verification status:", user.emailVerification);
-            
-            // Check if email is verified
-            if (user.emailVerification === false) {
-                console.log("Email is not verified, showing verification screen");
-                showVerificationNeeded(user);
-            } else {
-                console.log("Email is verified, showing profile");
+            // Strictly enforce verification
+            if (await enforceVerification(user)) {
                 showUserProfile(user);
             }
-            console.log("User is logged in:", user);
         } catch (error) {
             if (error.code === 401) {
                 console.log("User is not logged in (expected behavior)");
@@ -147,19 +162,22 @@ document.getElementById('login-form').addEventListener('submit', async function(
     try {
         // Check connection before attempting login
         if (await checkAppwriteConnection()) {
+            // First create the session
             const session = await account.createEmailSession(email, password);
+            console.log("Session created:", session);
+            
+            // Then fetch the user
             const user = await account.get();
+            console.log("User fetched after login:", user);
             
-            console.log("Login successful, user data:", user);
-            console.log("Email verification status:", user.emailVerification);
+            // Strictly check email verification
+            const isVerified = await checkEmailVerification(user);
             
-            // Check if email is verified
-            if (user.emailVerification === false) {
-                console.log("Email is not verified, showing verification screen");
+            if (!isVerified) {
+                // Show verification screen and send a new verification email
                 showVerificationNeeded(user);
-                alert("Please verify your email before accessing all features.");
+                alert("Email verification is required. Please check your inbox and verify your email.");
                 
-                // Re-send verification email for convenience
                 try {
                     await account.createVerification(window.location.origin + '/verification-success.html');
                     console.log("Verification email sent");
@@ -167,7 +185,6 @@ document.getElementById('login-form').addEventListener('submit', async function(
                     console.error("Error sending verification email:", verifyError);
                 }
             } else {
-                console.log("Email is verified, showing profile");
                 showUserProfile(user);
             }
         }
@@ -201,7 +218,7 @@ document.getElementById('signup-form').addEventListener('submit', async function
             
             // Show verification needed screen
             showVerificationNeeded(user);
-            alert("We've sent a verification email to your inbox. Please verify your email address to continue.");
+            alert("We've sent a verification email to your inbox. You must verify your email address before you can access all features.");
         }
     } catch (error) {
         console.error('Signup failed', error);
@@ -212,6 +229,9 @@ document.getElementById('signup-form').addEventListener('submit', async function
 // Event listener for resend verification email
 document.getElementById('resend-verification').addEventListener('click', async function() {
     try {
+        // Get the current user
+        const user = await account.get();
+        
         await account.createVerification(window.location.origin + '/verification-success.html');
         console.log("Verification email resent");
         alert("Verification email has been resent. Please check your inbox.");
