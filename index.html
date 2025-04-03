@@ -3,21 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SecureAuth | Appwrite Demo</title>
+    <title>Appwrite Auth Demo</title>
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
 <body>
     <div class="auth-container">
         <div class="auth-logo">
-            <i class="fas fa-shield-alt"></i>
-            <h1>SecureAuth</h1>
+            <i class="fas fa-cloud"></i>
+            <h1>CloudApp</h1>
         </div>
         
         <div class="container">
             <div id="login-section">
                 <h2>Welcome Back</h2>
-                <p class="auth-description">Sign in to your account to continue</p>
+                <p class="auth-description">Sign in to your account</p>
                 
                 <form id="login-form">
                     <div class="input-group">
@@ -66,31 +66,11 @@
                         </div>
                         <p id="strength-text">Password strength: Too weak</p>
                     </div>
-                    <div class="terms-checkbox">
-                        <input type="checkbox" id="terms-checkbox" required>
-                        <label for="terms-checkbox">I agree to the <a href="#" class="terms-link">Terms of Service</a> and <a href="#" class="terms-link">Privacy Policy</a></label>
-                    </div>
                     <button type="submit" class="btn-primary">Create Account</button>
                 </form>
                 
                 <div class="auth-footer">
                     <p>Already have an account? <a href="#" id="show-login">Sign In</a></p>
-                </div>
-            </div>
-
-            <div id="verification-section" style="display: none;">
-                <h2>Verification Required</h2>
-                <div class="verification-icon">
-                    <i class="fas fa-envelope-open-text"></i>
-                </div>
-                <div class="verification-info">
-                    <p>We've sent a verification email to:</p>
-                    <p class="verification-email"><strong><span id="verification-email"></span></strong></p>
-                    <p>Please check your inbox and click the verification link to continue.</p>
-                    <div class="verification-actions">
-                        <button id="resend-verification" class="btn-secondary"><i class="fas fa-paper-plane"></i> Resend Verification Email</button>
-                        <button id="verification-logout-btn" class="btn-outline"><i class="fas fa-sign-out-alt"></i> Sign Out</button>
-                    </div>
                 </div>
             </div>
 
@@ -103,15 +83,9 @@
                 </div>
                 <div class="profile-info">
                     <p><i class="fas fa-envelope"></i> Email: <span id="user-email"></span></p>
-                    <p><i class="fas fa-check-circle"></i> Account verified</p>
                 </div>
                 <button id="logout-btn" class="btn-danger"><i class="fas fa-sign-out-alt"></i> Sign Out</button>
             </div>
-        </div>
-        
-        <div class="security-notice">
-            <i class="fas fa-lock"></i>
-            <p>Your connection is secure</p>
         </div>
     </div>
 

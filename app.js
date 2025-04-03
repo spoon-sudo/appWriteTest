@@ -34,8 +34,8 @@ function handleOrigin() {
 handleOrigin();
 
 const client = new Client()
-    .setEndpoint('https://cloud.appwrite.io/v1') // Replace with your Appwrite endpoint
-    .setProject('67eea53e001c4b06d031');              // Replace with your project ID
+    .setEndpoint('https://cloud.appwrite.io/v1')
+    .setProject('67eea53e001c4b06d031');
 
 // Create the account object
 const account = new Account(client);
@@ -45,8 +45,7 @@ async function checkAppwriteConnection() {
     try {
         console.log("Testing connection to Appwrite...");
         
-        // Instead of checking with account.get(), which requires auth,
-        // use a public API endpoint like locale
+        // Use a public API endpoint like locale
         const response = await fetch('https://cloud.appwrite.io/v1/locale', {
             method: 'GET',
             headers: {
@@ -76,32 +75,6 @@ async function checkAppwriteConnection() {
     }
 }
 
-// Check if user's email is verified
-async function checkEmailVerification(user) {
-    // Make sure we're looking at the exact verification status
-    console.log("Raw user data:", JSON.stringify(user, null, 2));
-    
-    // Force logout if not verified
-    if (user.emailVerification !== true) {
-        console.log("Email is NOT verified for user:", user.$id);
-        
-        // Immediately end their session if trying to access the app without verification
-        showVerificationNeeded(user);
-        return false;
-    }
-    
-    console.log("Email is verified for user:", user.$id);
-    return true;
-}
-
-// Force logout if email is not verified
-async function enforceVerification(user) {
-    if (!await checkEmailVerification(user)) {
-        return false;
-    }
-    return true;
-}
-
 // Check if user is already logged in
 async function checkUserSession() {
     try {
@@ -115,15 +88,7 @@ async function checkUserSession() {
         // Then try to get the current user (may fail if not logged in)
         try {
             const user = await account.get();
-            console.log("User data:", user);
-            
-            // STRICTLY enforce verification - no access without verification
-            const isVerified = await enforceVerification(user);
-            if (!isVerified) {
-                console.log("User not verified, showing verification screen");
-                return; // Stop here, verification screen is already shown
-            }
-            
+            console.log("User logged in:", user);
             showUserProfile(user);
         } catch (error) {
             if (error.code === 401) {
@@ -139,21 +104,10 @@ async function checkUserSession() {
     }
 }
 
-// Show verification needed screen
-function showVerificationNeeded(user) {
-    document.getElementById('login-section').style.display = 'none';
-    document.getElementById('signup-section').style.display = 'none';
-    document.getElementById('user-section').style.display = 'none';
-    document.getElementById('verification-section').style.display = 'block';
-    
-    document.getElementById('verification-email').textContent = user.email;
-}
-
 // Function to show user profile
 function showUserProfile(user) {
     document.getElementById('login-section').style.display = 'none';
     document.getElementById('signup-section').style.display = 'none';
-    document.getElementById('verification-section').style.display = 'none';
     document.getElementById('user-section').style.display = 'block';
     
     document.getElementById('user-name').textContent = user.name;
@@ -170,31 +124,15 @@ document.getElementById('login-form').addEventListener('submit', async function(
     try {
         // Check connection before attempting login
         if (await checkAppwriteConnection()) {
-            // First create the session
-            const session = await account.createEmailSession(email, password);
-            console.log("Session created:", session);
+            // Create session
+            await account.createEmailSession(email, password);
             
-            // Then fetch the user
+            // Get user data
             const user = await account.get();
-            console.log("User fetched after login:", user);
+            console.log("Login successful:", user);
             
-            // Strictly check email verification
-            const isVerified = await checkEmailVerification(user);
-            
-            // If not verified, automatically delete the session to enforce verification
-            if (!isVerified) {
-                // Show verification screen and send a new verification email
-                alert("Email verification is required. Please check your inbox and verify your email before logging in.");
-                
-                try {
-                    await account.createVerification(window.location.origin + '/verification-success.html');
-                    console.log("Verification email sent");
-                } catch (verifyError) {
-                    console.error("Error sending verification email:", verifyError);
-                }
-            } else {
-                showUserProfile(user);
-            }
+            // Show user profile
+            showUserProfile(user);
         }
     } catch (error) {
         console.error('Login failed', error);
@@ -217,12 +155,6 @@ document.getElementById('signup-form').addEventListener('submit', async function
         return;
     }
     
-    // Check if terms are agreed to
-    if (!document.getElementById('terms-checkbox').checked) {
-        alert("You must agree to the Terms of Service and Privacy Policy to continue.");
-        return;
-    }
-    
     try {
         // Check connection before attempting signup
         if (await checkAppwriteConnection()) {
@@ -230,35 +162,27 @@ document.getElementById('signup-form').addEventListener('submit', async function
             const user = await account.create(ID.unique(), email, password, name);
             console.log("User created:", user);
             
-            // Create session
+            // Create session and log in automatically
             await account.createEmailSession(email, password);
             
-            // Send verification email
-            await account.createVerification(window.location.origin + '/verification-success.html');
-            console.log("Verification email sent");
+            // Get updated user data
+            const loggedInUser = await account.get();
             
-            // Show verification needed screen
-            showVerificationNeeded(user);
-            alert("We've sent a verification email to your inbox. You MUST verify your email address before you can login and access the app.");
+            // Show user profile
+            showUserProfile(loggedInUser);
+            
+            // Success message
+            alert("Account created successfully! You're now logged in.");
         }
     } catch (error) {
         console.error('Signup failed', error);
-        alert('Signup failed: ' + error.message + (error.code ? ` (code: ${error.code})` : ''));
-    }
-});
-
-// Event listener for resend verification email
-document.getElementById('resend-verification').addEventListener('click', async function() {
-    try {
-        // Get the current user
-        const user = await account.get();
         
-        await account.createVerification(window.location.origin + '/verification-success.html');
-        console.log("Verification email resent");
-        alert("Verification email has been resent. Please check your inbox.");
-    } catch (error) {
-        console.error('Failed to resend verification email', error);
-        alert('Failed to resend verification email: ' + error.message);
+        // Provide user-friendly error messages
+        if (error.code === 409) {
+            alert('Email already exists. Please use a different email address.');
+        } else {
+            alert('Signup failed: ' + error.message);
+        }
     }
 });
 
@@ -268,20 +192,9 @@ document.getElementById('logout-btn').addEventListener('click', async function()
         await account.deleteSession('current');
         document.getElementById('login-section').style.display = 'block';
         document.getElementById('user-section').style.display = 'none';
-        document.getElementById('verification-section').style.display = 'none';
     } catch (error) {
         console.error('Logout failed', error);
-    }
-});
-
-// Event listener for verification logout button
-document.getElementById('verification-logout-btn').addEventListener('click', async function() {
-    try {
-        await account.deleteSession('current');
-        document.getElementById('login-section').style.display = 'block';
-        document.getElementById('verification-section').style.display = 'none';
-    } catch (error) {
-        console.error('Logout failed', error);
+        alert('Logout failed: ' + error.message);
     }
 });
 
