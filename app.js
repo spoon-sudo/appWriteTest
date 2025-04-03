@@ -114,21 +114,22 @@ function showChatInterface() {
 
 // Load user data (friends, messages, etc.)
 async function loadUserData() {
-    await Promise.all([
-        loadFriends(),
-        loadFriendRequests()
-    ]);
-    
-    // Set up real-time listeners
-    setupRealtimeListeners();
+    try {
+        await Promise.all([
+            loadFriends(),
+            loadFriendRequests()
+        ]);
+        
+        // Set up real-time listeners
+        setupRealtimeListeners();
+    } catch (error) {
+        console.error('Error loading user data:', error);
+    }
 }
 
 // Load friends list
 async function loadFriends() {
     try {
-        // Create collections if they don't exist
-        await ensureDatabaseSetup();
-
         // Find all friend relationships where the user is involved
         const response = await databases.listDocuments(
             config.databaseId,
@@ -177,10 +178,11 @@ async function loadFriends() {
                 }
             }
         } else {
-            elements.friendsList.innerHTML = '<p>No friends yet. Add friends to start chatting!</p>';
+            elements.friendsList.innerHTML = '<p class="text-center mt-2">No friends yet. Add friends to start chatting!</p>';
         }
     } catch (error) {
         console.error('Error loading friends:', error);
+        elements.friendsList.innerHTML = '<p class="text-center mt-2">Could not load friends list.</p>';
     }
 }
 
@@ -224,10 +226,11 @@ async function loadFriendRequests() {
                 }
             }
         } else {
-            elements.friendRequestsList.innerHTML = '<p>No pending requests</p>';
+            elements.friendRequestsList.innerHTML = '<p class="text-center mt-2">No pending requests</p>';
         }
     } catch (error) {
         console.error('Error loading friend requests:', error);
+        elements.friendRequestsList.innerHTML = '<p class="text-center mt-2">Could not load friend requests.</p>';
     }
 }
 
@@ -564,174 +567,6 @@ async function createUserDocument(user) {
     }
 }
 
-// Ensure database and collections exist
-async function ensureDatabaseSetup() {
-    try {
-        // Check if collections exist by trying to list documents
-        try {
-            await databases.listDocuments(
-                config.databaseId,
-                config.usersCollectionId
-            );
-            console.log("Database collections already exist");
-            return;
-        } catch (error) {
-            console.log('Setting up database for first use...');
-        }
-            
-        // Create database if not exists
-        try {
-            await databases.create(
-                config.databaseId,
-                'CloudChat Database'
-            );
-            console.log('Database created');
-        } catch (dbError) {
-            // Database might already exist
-            console.log('Database exists or error:', dbError);
-        }
-        
-        // Create collections with delay between each to prevent rate limiting
-        try {
-            // Create users collection
-            await databases.createCollection(
-                config.databaseId,
-                config.usersCollectionId,
-                'Users'
-            );
-            
-            console.log('Users collection created');
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            
-            await databases.createStringAttribute(
-                config.databaseId, 
-                config.usersCollectionId, 
-                'name', 
-                255, 
-                true
-            );
-            
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            
-            await databases.createEmailAttribute(
-                config.databaseId, 
-                config.usersCollectionId, 
-                'email', 
-                true
-            );
-            
-            console.log('Users attributes created');
-        } catch (collectionError) {
-            console.log('Users collection exists or error:', collectionError);
-        }
-        
-        try {
-            // Create friends collection
-            await databases.createCollection(
-                config.databaseId,
-                config.friendsCollectionId,
-                'Friends'
-            );
-            
-            console.log('Friends collection created');
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            
-            await databases.createStringAttribute(
-                config.databaseId, 
-                config.friendsCollectionId, 
-                'user1Id', 
-                36, 
-                true
-            );
-            
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            
-            await databases.createStringAttribute(
-                config.databaseId, 
-                config.friendsCollectionId, 
-                'user2Id', 
-                36, 
-                true
-            );
-            
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            
-            await databases.createEnumAttribute(
-                config.databaseId, 
-                config.friendsCollectionId, 
-                'status', 
-                ['pending', 'accepted', 'rejected'],
-                true
-            );
-            
-            console.log('Friends attributes created');
-        } catch (collectionError) {
-            console.log('Friends collection exists or error:', collectionError);
-        }
-        
-        try {
-            // Create messages collection
-            await databases.createCollection(
-                config.databaseId,
-                config.messagesCollectionId,
-                'Messages'
-            );
-            
-            console.log('Messages collection created');
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            
-            await databases.createStringAttribute(
-                config.databaseId, 
-                config.messagesCollectionId, 
-                'senderId', 
-                36, 
-                true
-            );
-            
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            
-            await databases.createStringAttribute(
-                config.databaseId, 
-                config.messagesCollectionId, 
-                'receiverId', 
-                36, 
-                true
-            );
-            
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            
-            await databases.createStringAttribute(
-                config.databaseId, 
-                config.messagesCollectionId, 
-                'content', 
-                4096, 
-                true
-            );
-            
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            
-            await databases.createEnumAttribute(
-                config.databaseId, 
-                config.messagesCollectionId, 
-                'status', 
-                ['sent', 'delivered', 'read'],
-                true
-            );
-            
-            console.log('Messages attributes created');
-        } catch (collectionError) {
-            console.log('Messages collection exists or error:', collectionError);
-        }
-        
-        // Wait for the database and collections to be ready
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        console.log('Database setup completed');
-        
-    } catch (error) {
-        console.error('Error setting up database:', error);
-    }
-}
-
 // Event Listeners
 // Login form
 elements.loginForm.addEventListener('submit', async function(e) {
@@ -747,9 +582,6 @@ elements.loginForm.addEventListener('submit', async function(e) {
         // Get user data
         const user = await account.get();
         state.currentUser = user;
-        
-        // Ensure database setup
-        await ensureDatabaseSetup();
         
         // Show chat interface and load data
         showChatInterface();
@@ -776,10 +608,7 @@ elements.signupForm.addEventListener('submit', async function(e) {
     }
     
     try {
-        // Ensure database setup
-        await ensureDatabaseSetup();
-        
-        // Create user account
+        // Create user account first
         const user = await account.create(ID.unique(), email, password, name);
         console.log("User created:", user);
         

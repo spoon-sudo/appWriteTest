@@ -3,9 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CloudChat - Messaging App</title>
+    <title>CloudChat - Modern Messaging App</title>
     <link rel="stylesheet" href="styles.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
     <!-- Auth Container (Login/Signup) -->
@@ -15,10 +16,12 @@
             <h1>CloudChat</h1>
         </div>
         
-        <div class="container">
-            <div id="login-section">
-                <h2>Welcome Back</h2>
-                <p class="auth-description">Sign in to your account</p>
+        <div class="auth-cards">
+            <div class="auth-card" id="login-section">
+                <div class="header">
+                    <h2>Welcome Back</h2>
+                    <p class="auth-description">Sign in to your account</p>
+                </div>
                 
                 <form id="login-form">
                     <div class="input-group">
@@ -30,7 +33,7 @@
                         <input type="password" id="login-password" placeholder="Password" required>
                         <i class="fas fa-eye-slash toggle-password" onclick="togglePasswordVisibility(this)"></i>
                     </div>
-                    <button type="submit" class="btn-primary">
+                    <button type="submit" class="btn btn-primary btn-block">
                         <i class="fas fa-sign-in-alt"></i>
                         Sign In
                     </button>
@@ -41,9 +44,11 @@
                 </div>
             </div>
 
-            <div id="signup-section" style="display: none;">
-                <h2>Create Account</h2>
-                <p class="auth-description">Sign up to get started</p>
+            <div class="auth-card" id="signup-section" style="display: none;">
+                <div class="header">
+                    <h2>Create Account</h2>
+                    <p class="auth-description">Sign up to get started</p>
+                </div>
                 
                 <form id="signup-form">
                     <div class="input-group">
@@ -70,7 +75,7 @@
                         </div>
                         <p id="strength-text">Password strength: Too weak</p>
                     </div>
-                    <button type="submit" class="btn-primary">
+                    <button type="submit" class="btn btn-primary btn-block">
                         <i class="fas fa-user-plus"></i>
                         Create Account
                     </button>
@@ -85,8 +90,27 @@
 
     <!-- Chat App Container -->
     <div class="app-container" id="chat-container" style="display: none;">
+        <!-- Mobile Header - Only visible on mobile -->
+        <header class="app-header">
+            <button class="mobile-menu-toggle" id="mobile-menu-toggle">
+                <i class="fas fa-bars"></i>
+            </button>
+            <div class="app-title">
+                <i class="fas fa-comments"></i>
+                <h1>CloudChat</h1>
+            </div>
+            <div class="header-actions">
+                <button class="btn-icon" id="account-settings-btn" title="Account Settings">
+                    <i class="fas fa-cog"></i>
+                </button>
+                <button class="btn-icon" id="logout-btn" title="Logout">
+                    <i class="fas fa-sign-out-alt"></i>
+                </button>
+            </div>
+        </header>
+
         <!-- Sidebar with friends list -->
-        <div class="sidebar">
+        <div class="sidebar" id="sidebar">
             <!-- User profile section -->
             <div class="user-profile">
                 <div class="profile-avatar">
@@ -96,23 +120,26 @@
                     <div class="profile-name" id="current-user-name">User Name</div>
                     <div class="profile-status">
                         <span class="status-indicator"></span>
-                        Online
+                        <span>Online</span>
                     </div>
                 </div>
                 <div class="app-actions">
                     <button class="btn-icon" id="add-friend-btn" title="Add Friend">
                         <i class="fas fa-user-plus"></i>
                     </button>
-                    <button class="btn-icon" id="logout-btn" title="Logout">
-                        <i class="fas fa-sign-out-alt"></i>
-                    </button>
                 </div>
             </div>
+
+            <!-- Tabs for navigation -->
+            <div class="tabs">
+                <div class="tab active" data-tab="chats">Chats</div>
+                <div class="tab" data-tab="requests">Requests</div>
+            </div>
             
-            <!-- Friend search -->
-            <div class="friends-container">
+            <!-- Friends container -->
+            <div class="friends-container" id="chats-tab">
                 <div class="friend-search">
-                    <i class="fas fa-search input-icon"></i>
+                    <i class="fas fa-search search-icon"></i>
                     <input type="text" id="friend-search" placeholder="Search friends...">
                 </div>
                 
@@ -122,11 +149,13 @@
                 </div>
             </div>
             
-            <!-- Friend requests -->
-            <div class="friend-requests">
-                <h3>Friend Requests</h3>
-                <div id="friend-requests-list">
+            <!-- Friend requests tab -->
+            <div class="friends-container hidden" id="requests-tab">
+                <div class="friends-list" id="friend-requests-list">
                     <!-- Friend requests will be added here dynamically -->
+                    <div class="text-center mt-2" id="no-requests-message">
+                        <p>No pending requests</p>
+                    </div>
                 </div>
             </div>
         </div>
@@ -152,7 +181,7 @@
                         <div class="profile-name" id="chat-with-name">Friend Name</div>
                         <div class="profile-status">
                             <span class="status-indicator"></span>
-                            Online
+                            <span>Online</span>
                         </div>
                     </div>
                     <div class="chat-actions">
@@ -187,7 +216,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h3 class="modal-title">Add New Friend</h3>
-                <button class="modal-close" id="close-modal">&times;</button>
+                <button class="modal-close" id="close-add-friend-modal">&times;</button>
             </div>
             <div class="modal-body">
                 <p>Enter the email address of the person you want to add as a friend.</p>
@@ -197,7 +226,8 @@
                 </div>
             </div>
             <div class="modal-footer">
-                <button class="btn-primary" id="send-friend-request">
+                <button class="btn btn-outline" id="cancel-friend-request">Cancel</button>
+                <button class="btn btn-primary" id="send-friend-request">
                     <i class="fas fa-user-plus"></i>
                     Send Request
                 </button>
@@ -205,9 +235,129 @@
         </div>
     </div>
 
+    <!-- Account Settings Modal -->
+    <div class="modal" id="account-settings-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">Account Settings</h3>
+                <button class="modal-close" id="close-account-settings-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="tabs-container">
+                    <div class="tabs">
+                        <div class="tab active" data-settings-tab="profile">Profile</div>
+                        <div class="tab" data-settings-tab="security">Security</div>
+                        <div class="tab" data-settings-tab="appearance">Appearance</div>
+                    </div>
+                    
+                    <div class="tab-content">
+                        <!-- Profile Tab -->
+                        <div class="tab-content-item active" id="profile-tab">
+                            <div class="settings-section">
+                                <h4>Profile Picture</h4>
+                                <div class="avatar-upload">
+                                    <div class="avatar-preview" id="avatar-preview">
+                                        <i class="fas fa-user"></i>
+                                        <div class="avatar-upload-btn">
+                                            <i class="fas fa-camera"></i>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <p>Upload a profile picture</p>
+                                        <small class="text-lightest">JPG, PNG or GIF. Max size 2MB</small>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="settings-section">
+                                <h4>Personal Information</h4>
+                                <div class="input-group">
+                                    <i class="fas fa-user input-icon"></i>
+                                    <input type="text" id="profile-name" placeholder="Full name">
+                                </div>
+                                <div class="input-group">
+                                    <i class="fas fa-envelope input-icon"></i>
+                                    <input type="email" id="profile-email" placeholder="Email address" disabled>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Security Tab -->
+                        <div class="tab-content-item" id="security-tab">
+                            <div class="settings-section">
+                                <h4>Change Password</h4>
+                                <div class="input-group">
+                                    <i class="fas fa-lock input-icon"></i>
+                                    <input type="password" id="current-password" placeholder="Current password">
+                                    <i class="fas fa-eye-slash toggle-password" onclick="togglePasswordVisibility(this)"></i>
+                                </div>
+                                <div class="input-group">
+                                    <i class="fas fa-lock input-icon"></i>
+                                    <input type="password" id="new-password" placeholder="New password">
+                                    <i class="fas fa-eye-slash toggle-password" onclick="togglePasswordVisibility(this)"></i>
+                                </div>
+                                <div class="input-group">
+                                    <i class="fas fa-lock input-icon"></i>
+                                    <input type="password" id="confirm-new-password" placeholder="Confirm new password">
+                                    <i class="fas fa-eye-slash toggle-password" onclick="togglePasswordVisibility(this)"></i>
+                                </div>
+                                <div class="password-strength" id="new-password-strength">
+                                    <div class="strength-bar">
+                                        <div class="strength-indicator" id="new-strength-indicator"></div>
+                                    </div>
+                                    <p id="new-strength-text">Password strength: Too weak</p>
+                                </div>
+                            </div>
+                            
+                            <div class="settings-section">
+                                <h4>Two-Factor Authentication</h4>
+                                <div class="input-group">
+                                    <button class="btn btn-outline btn-block">
+                                        <i class="fas fa-shield-alt"></i>
+                                        Set Up 2FA
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Appearance Tab -->
+                        <div class="tab-content-item" id="appearance-tab">
+                            <div class="settings-section">
+                                <h4>Theme</h4>
+                                <div class="input-group">
+                                    <div class="theme-options">
+                                        <label class="theme-option">
+                                            <input type="radio" name="theme" value="light" checked>
+                                            <span>Light</span>
+                                        </label>
+                                        <label class="theme-option">
+                                            <input type="radio" name="theme" value="dark">
+                                            <span>Dark</span>
+                                        </label>
+                                        <label class="theme-option">
+                                            <input type="radio" name="theme" value="system">
+                                            <span>System Default</span>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" id="cancel-settings">Cancel</button>
+                <button class="btn btn-primary" id="save-settings">
+                    <i class="fas fa-save"></i>
+                    Save Changes
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Dark Mode Toggle -->
     <div class="dark-mode-toggle" id="dark-mode-toggle" title="Toggle Dark Mode">
-        <i class="fas fa-moon dark-mode-icon" id="dark-mode-icon"></i>
+        <i class="fas fa-moon" id="dark-mode-icon"></i>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/appwrite@11.0.0"></script>
@@ -226,9 +376,19 @@
 
         // Password strength meter
         document.getElementById('signup-password').addEventListener('input', function() {
-            const password = this.value;
-            const strengthIndicator = document.getElementById('strength-indicator');
-            const strengthText = document.getElementById('strength-text');
+            updatePasswordStrength(this.value, 'strength-indicator', 'strength-text');
+        });
+
+        // For the account settings password change
+        if (document.getElementById('new-password')) {
+            document.getElementById('new-password').addEventListener('input', function() {
+                updatePasswordStrength(this.value, 'new-strength-indicator', 'new-strength-text');
+            });
+        }
+
+        function updatePasswordStrength(password, indicatorId, textId) {
+            const strengthIndicator = document.getElementById(indicatorId);
+            const strengthText = document.getElementById(textId);
             
             // Calculate password strength
             let strength = 0;
@@ -242,21 +402,21 @@
             
             // Update color based on strength
             if (strength <= 25) {
-                strengthIndicator.style.backgroundColor = '#ff4d4d';
+                strengthIndicator.style.backgroundColor = '#ef4444';
                 strengthText.textContent = 'Password strength: Too weak';
             } else if (strength <= 50) {
-                strengthIndicator.style.backgroundColor = '#ffa64d';
+                strengthIndicator.style.backgroundColor = '#f59e0b';
                 strengthText.textContent = 'Password strength: Weak';
             } else if (strength <= 75) {
-                strengthIndicator.style.backgroundColor = '#2db7f5';
+                strengthIndicator.style.backgroundColor = '#3b82f6';
                 strengthText.textContent = 'Password strength: Good';
             } else {
-                strengthIndicator.style.backgroundColor = '#4CAF50';
+                strengthIndicator.style.backgroundColor = '#10b981';
                 strengthText.textContent = 'Password strength: Strong';
             }
-        });
+        }
 
-        // Check if passwords match
+        // Confirm password check
         document.getElementById('signup-confirm-password').addEventListener('input', function() {
             const password = document.getElementById('signup-password').value;
             const confirmPassword = this.value;
@@ -267,12 +427,30 @@
                 this.setCustomValidity('');
             }
         });
+
+        // Same for settings password change
+        if (document.getElementById('confirm-new-password')) {
+            document.getElementById('confirm-new-password').addEventListener('input', function() {
+                const password = document.getElementById('new-password').value;
+                const confirmPassword = this.value;
+                
+                if (password !== confirmPassword) {
+                    this.setCustomValidity('Passwords do not match');
+                } else {
+                    this.setCustomValidity('');
+                }
+            });
+        }
         
         // Dark mode toggle
         const darkModeToggle = document.getElementById('dark-mode-toggle');
         const darkModeIcon = document.getElementById('dark-mode-icon');
         
         darkModeToggle.addEventListener('click', () => {
+            toggleDarkMode();
+        });
+
+        function toggleDarkMode() {
             const currentTheme = document.documentElement.getAttribute('data-theme');
             const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
             
@@ -287,7 +465,7 @@
             
             // Save preference to localStorage
             localStorage.setItem('theme', newTheme);
-        });
+        }
         
         // Check for saved theme preference
         const savedTheme = localStorage.getItem('theme');
@@ -311,23 +489,146 @@
             document.getElementById('signup-section').style.display = 'none';
         });
         
-        // Handle modal
+        // Tabs navigation for sidebar
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', function() {
+                // Skip if it's in the account settings modal
+                if (this.hasAttribute('data-settings-tab')) return;
+                
+                // Remove active class from all tabs
+                document.querySelectorAll('.tab').forEach(t => {
+                    if (!t.hasAttribute('data-settings-tab')) {
+                        t.classList.remove('active');
+                    }
+                });
+                
+                // Add active class to clicked tab
+                this.classList.add('active');
+                
+                // Show the corresponding tab content
+                const tabName = this.getAttribute('data-tab');
+                
+                // Hide all tab contents
+                document.getElementById('chats-tab').classList.add('hidden');
+                document.getElementById('requests-tab').classList.add('hidden');
+                
+                // Show the selected tab content
+                document.getElementById(tabName + '-tab').classList.remove('hidden');
+            });
+        });
+        
+        // Account settings tabs
+        document.querySelectorAll('[data-settings-tab]').forEach(tab => {
+            tab.addEventListener('click', function() {
+                // Remove active class from all settings tabs
+                document.querySelectorAll('[data-settings-tab]').forEach(t => {
+                    t.classList.remove('active');
+                });
+                
+                // Add active class to clicked tab
+                this.classList.add('active');
+                
+                // Show the corresponding tab content
+                const tabName = this.getAttribute('data-settings-tab');
+                
+                // Hide all tab contents
+                document.querySelectorAll('.tab-content-item').forEach(item => {
+                    item.classList.remove('active');
+                });
+                
+                // Show the selected tab content
+                document.getElementById(tabName + '-tab').classList.add('active');
+            });
+        });
+        
+        // Mobile menu toggle
+        document.getElementById('mobile-menu-toggle').addEventListener('click', function() {
+            document.getElementById('sidebar').classList.toggle('show');
+        });
+        
+        // Add Friend Modal
         const addFriendBtn = document.getElementById('add-friend-btn');
-        const closeModalBtn = document.getElementById('close-modal');
         const addFriendModal = document.getElementById('add-friend-modal');
+        const closeAddFriendModal = document.getElementById('close-add-friend-modal');
+        const cancelFriendRequest = document.getElementById('cancel-friend-request');
         
         addFriendBtn.addEventListener('click', () => {
             addFriendModal.classList.add('active');
         });
         
-        closeModalBtn.addEventListener('click', () => {
+        closeAddFriendModal.addEventListener('click', () => {
             addFriendModal.classList.remove('active');
         });
         
-        // Close modal when clicking outside
+        cancelFriendRequest.addEventListener('click', () => {
+            addFriendModal.classList.remove('active');
+        });
+        
+        // Account Settings Modal
+        const accountSettingsBtn = document.getElementById('account-settings-btn');
+        const accountSettingsModal = document.getElementById('account-settings-modal');
+        const closeAccountSettingsModal = document.getElementById('close-account-settings-modal');
+        const cancelSettings = document.getElementById('cancel-settings');
+        const saveSettings = document.getElementById('save-settings');
+        
+        accountSettingsBtn.addEventListener('click', () => {
+            accountSettingsModal.classList.add('active');
+        });
+        
+        closeAccountSettingsModal.addEventListener('click', () => {
+            accountSettingsModal.classList.remove('active');
+        });
+        
+        cancelSettings.addEventListener('click', () => {
+            accountSettingsModal.classList.remove('active');
+        });
+        
+        saveSettings.addEventListener('click', () => {
+            // Save settings logic will be implemented in app.js
+            accountSettingsModal.classList.remove('active');
+        });
+        
+        // Close modals when clicking outside
         window.addEventListener('click', (e) => {
             if (e.target === addFriendModal) {
                 addFriendModal.classList.remove('active');
+            }
+            if (e.target === accountSettingsModal) {
+                accountSettingsModal.classList.remove('active');
+            }
+        });
+        
+        // Theme option change
+        document.querySelectorAll('input[name="theme"]').forEach(input => {
+            input.addEventListener('change', function() {
+                if (this.value === 'light') {
+                    document.documentElement.setAttribute('data-theme', 'light');
+                    darkModeIcon.classList.replace('fa-sun', 'fa-moon');
+                    localStorage.setItem('theme', 'light');
+                } else if (this.value === 'dark') {
+                    document.documentElement.setAttribute('data-theme', 'dark');
+                    darkModeIcon.classList.replace('fa-moon', 'fa-sun');
+                    localStorage.setItem('theme', 'dark');
+                } else {
+                    // System default
+                    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+                    document.documentElement.setAttribute('data-theme', prefersDark ? 'dark' : 'light');
+                    darkModeIcon.className = prefersDark ? 'fas fa-sun' : 'fas fa-moon';
+                    localStorage.removeItem('theme');
+                }
+            });
+        });
+        
+        // Set the initial radio button state based on current theme
+        window.addEventListener('DOMContentLoaded', () => {
+            const currentTheme = document.documentElement.getAttribute('data-theme');
+            const savedTheme = localStorage.getItem('theme');
+            
+            if (savedTheme) {
+                document.querySelector(`input[name="theme"][value="${savedTheme}"]`).checked = true;
+            } else {
+                // If no saved theme, check system default
+                document.querySelector('input[name="theme"][value="system"]').checked = true;
             }
         });
     </script>
