@@ -446,11 +446,7 @@ async function sendMessage() {
             config.messagesCollectionId,
             ID.unique(),
             message,
-            [
-                Permission.read(Role.user(state.currentUser.$id)),
-                Permission.read(Role.user(state.currentChat)),
-                Permission.write(Role.user(state.currentUser.$id))
-            ]
+            [] // use collection-level permissions
         );
         
         // Clear input
@@ -460,7 +456,7 @@ async function sendMessage() {
         loadMessages(state.currentChat);
     } catch (error) {
         console.error('Error sending message:', error);
-        alert('Failed to send message. Please try again.');
+        alert('Failed to send message: ' + error.message);
     }
 }
 
