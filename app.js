@@ -66,7 +66,8 @@ const state = {
     localStream: null,
     peerConnection: null,
     callDocId: null,
-    pendingCall: null
+    pendingCall: null,
+    isInitiator: false
 };
 
 // Persist saved accounts
@@ -135,6 +136,7 @@ elements.cancelCallBtn.addEventListener('click', () => {
 // Decline incoming call
 elements.declineCallBtn.addEventListener('click', () => {
     elements.incomingCallModal.classList.remove('active');
+    elements.incomingCallModal.style.display = 'none';
     state.pendingCall = null;
 });
 
@@ -142,32 +144,97 @@ elements.declineCallBtn.addEventListener('click', () => {
 elements.acceptCallBtn.addEventListener('click', async () => {
     const call = state.pendingCall;
     if (!call) return;
+    // Hide incoming call UI
     elements.incomingCallModal.classList.remove('active');
-    // proceed with answer (existing code)
-    state.localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    state.peerConnection = new RTCPeerConnection();
-    state.localStream.getTracks().forEach(t => state.peerConnection.addTrack(t, state.localStream));
-    state.peerConnection.ontrack = e => { elements.remoteAudio.srcObject = e.streams[0]; elements.remoteAudio.style.display = 'block'; };
-    state.peerConnection.onicecandidate = e => {
-        if (e.candidate) databases.updateDocument(config.databaseId, config.callsCollectionId, call.id, { candidate: JSON.stringify(e.candidate) });
-    };
-    await state.peerConnection.setRemoteDescription(call.offer);
-    const ans = await state.peerConnection.createAnswer();
-    await state.peerConnection.setLocalDescription(ans);
-    await databases.updateDocument(config.databaseId, config.callsCollectionId, call.id, { answer: JSON.stringify(ans) });
-    state.pendingCall = null;
+    elements.incomingCallModal.style.display = 'none';
+    try {
+        state.localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        state.peerConnection = new RTCPeerConnection();
+        state.localStream.getTracks().forEach(t => state.peerConnection.addTrack(t, state.localStream));
+        state.peerConnection.ontrack = e => { elements.remoteAudio.srcObject = e.streams[0]; elements.remoteAudio.style.display = 'block'; };
+        state.peerConnection.onicecandidate = e => {
+            if (e.candidate) {
+                databases.updateDocument(
+                    config.databaseId,
+                    config.callsCollectionId,
+                    call.id,
+                    { candidate: JSON.stringify(e.candidate) }
+                );
+            }
+        };
+        // Set remote offer with error handling
+        try {
+            await state.peerConnection.setRemoteDescription(call.offer);
+        } catch (e) {
+            console.warn('Error setting remote offer description', e);
+        }
+        const ans = await state.peerConnection.createAnswer();
+        await state.peerConnection.setLocalDescription(ans);
+        await databases.updateDocument(
+            config.databaseId,
+            config.callsCollectionId,
+            call.id,
+            { answer: JSON.stringify(ans) }
+        );
+    } catch (error) {
+        console.error('Error accepting call:', error);
+        alert('Failed to join call: ' + error.message);
+    } finally {
+        state.pendingCall = null;
+    }
 });
 
-// Subscribe to call signaling channel for all document events
+// Subscribe to call signaling channel and dispatch by event type
 function subscribeCalls() {
     const channel = `databases.${config.databaseId}.collections.${config.callsCollectionId}.documents`;
-    client.subscribe(
-        [ channel ],
-        (response) => {
-            console.log('Call signal event:', response);
-            handleCallSignal(response.payload);
+    client.subscribe([channel], (response) => {
+        console.log('Received call signal event:', response.events, response);
+        const event = response.events.find(e => e.startsWith(`databases.${config.databaseId}.collections.${config.callsCollectionId}.documents`));
+        if (event.endsWith('.create')) {
+            handleOffer(response.payload);
+        } else if (event.endsWith('.update')) {
+            handleAnswerAndCandidates(response.payload);
         }
-    );
+    });
+}
+
+// Handle only offer messages
+async function handleOffer(payload) {
+    state.isInitiator = false;
+    console.log('handleOffer payload:', payload);
+    const { $id, from, to, offer } = payload;
+    const toId = typeof to === 'string' ? to : (Array.isArray(to)? to[0].$id : to.$id);
+    const fromId = typeof from === 'string' ? from : (Array.isArray(from)? from[0].$id : from.$id);
+    console.log(`handleOffer: toId=${toId}, currentUserId=${state.currentUser.$id}`);
+    if (toId !== state.currentUser.$id) return;
+    // Show incoming call UI
+    console.log('Incoming call offer from', fromId);
+    const callerName = state.friends.find(f => f.id === fromId)?.name || fromId;
+    elements.incomingCallerName.textContent = callerName;
+    elements.incomingCallModal.classList.add('active');
+    elements.incomingCallModal.style.display = 'flex';
+    state.pendingCall = { id: $id, from: fromId, offer: new RTCSessionDescription(JSON.parse(offer)) };
+}
+
+// Handle answer and ICE candidate messages
+async function handleAnswerAndCandidates(payload) {
+    console.log('handleAnswerAndCandidates payload:', payload);
+    const { $id, answer, candidate } = payload;
+    // Attempt to apply remote answer (wrapped in try/catch to avoid state errors)
+    const pc = state.peerConnection;
+    if (answer && pc && state.isInitiator) {
+        console.log('Applying remote answer for call', $id, 'state:', pc.signalingState);
+        try {
+            await pc.setRemoteDescription(new RTCSessionDescription(JSON.parse(answer)));
+            console.log('Remote description applied');
+        } catch (e) {
+            console.warn('Error applying remote answer (ignored):', e);
+        }
+    }
+    if (candidate && state.peerConnection) {
+        console.log('Received ICE candidate');
+        await state.peerConnection.addIceCandidate(new RTCIceCandidate(JSON.parse(candidate)));
+    }
 }
 
 // Initialize app
@@ -207,53 +274,9 @@ function showChatInterface() {
     }
 }
 
-// Handle incoming signaling messages
-async function handleCallSignal(payload) {
-    console.log('handleCallSignal payload:', payload);
-    const { $id, from, to, offer, answer, candidate } = payload;
-    // Normalize 'to' and 'from' fields in case they come as arrays or objects
-    const toField = to;
-    const fromField = from;
-    const toId = typeof toField === 'string'
-        ? toField
-        : Array.isArray(toField)
-            ? toField[0].$id
-            : toField.$id;
-    const fromId = typeof fromField === 'string'
-        ? fromField
-        : Array.isArray(fromField)
-            ? fromField[0].$id
-            : fromField.$id;
-    console.log(`handleCallSignal: toId=${toId}, currentUserId=${state.currentUser.$id}`);
-    if (toId !== state.currentUser.$id) {
-        console.log('Not for this user, ignoring');
-        return;
-    }
-    // If offer arrives, show incoming call UI
-    if (offer && !state.peerConnection) {
-        console.log('Incoming call offer from', fromId);
-        // Show incoming call UI
-        const callerName = state.friends.find(f => f.id === fromId)?.name || fromId;
-        elements.incomingCallerName.textContent = callerName;
-        elements.incomingCallModal.classList.add('active');
-        // store pending call info
-        state.pendingCall = { id: $id, from: fromId, offer: new RTCSessionDescription(JSON.parse(offer)) };
-        return; // wait for user to accept
-    }
-    // Handle answer
-    if (answer && state.peerConnection) {
-        console.log('Received answer for call', $id);
-        await state.peerConnection.setRemoteDescription(new RTCSessionDescription(JSON.parse(answer)));
-    }
-    // Handle candidate
-    if (candidate && state.peerConnection) {
-        console.log('Received ICE candidate');
-        await state.peerConnection.addIceCandidate(new RTCIceCandidate(JSON.parse(candidate)));
-    }
-}
-
 // Replace initiateCall stub with real function
 async function initiateCall() {
+    state.isInitiator = true;
     console.log('initiateCall: currentChat=', state.currentChat);
     if (!state.currentChat) {
         alert('Please select a friend to call.');
