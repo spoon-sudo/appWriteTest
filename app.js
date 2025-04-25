@@ -536,11 +536,7 @@ async function sendFriendRequest() {
                 user2Id: user.$id, // Receiver
                 status: 'pending'
             },
-            [
-                Permission.read(Role.user(state.currentUser.$id)),
-                Permission.read(Role.user(user.$id)),
-                Permission.write(Role.user(state.currentUser.$id))
-            ]
+            [] // use collection-level permissions
         );
         
         // Close modal and show success
