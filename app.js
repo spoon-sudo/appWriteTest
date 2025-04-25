@@ -1,5 +1,5 @@
 // Initialize Appwrite SDK
-const { Client, Account, ID, Databases, Query } = Appwrite;
+const { Client, Account, ID, Databases, Query, Permission, Role } = Appwrite;
 
 // App config
 const config = {
@@ -59,8 +59,14 @@ const state = {
     friendRequests: [],
     currentChat: null,
     messages: [],
-    darkMode: localStorage.getItem('theme') === 'dark'
+    darkMode: localStorage.getItem('theme') === 'dark',
+    savedAccounts: JSON.parse(localStorage.getItem('savedAccounts') || '[]')
 };
+
+// Persist saved accounts
+function persistAccounts() {
+    localStorage.setItem('savedAccounts', JSON.stringify(state.savedAccounts));
+}
 
 // DOM elements
 const elements = {
@@ -82,7 +88,11 @@ const elements = {
     friendEmail: document.getElementById('friend-email'),
     sendFriendRequest: document.getElementById('send-friend-request'),
     logoutBtn: document.getElementById('logout-btn'),
-    switchAccountBtn: document.getElementById('switch-account-btn')
+    switchAccountBtn: document.getElementById('switch-account-btn'),
+    switchAccountModal: document.getElementById('switch-account-modal'),
+    savedAccountsList: document.getElementById('saved-accounts-list'),
+    closeSwitchAccountModal: document.getElementById('close-switch-account-modal'),
+    addAccountBtn: document.getElementById('add-account-btn')
 };
 
 // Initialize app
@@ -421,7 +431,12 @@ async function sendMessage() {
             config.databaseId,
             config.messagesCollectionId,
             ID.unique(),
-            message
+            message,
+            [
+                Permission.read(Role.user(state.currentUser.$id)),
+                Permission.read(Role.user(state.currentChat)),
+                Permission.write(Role.user(state.currentUser.$id))
+            ]
         );
         
         // Clear input
@@ -505,7 +520,12 @@ async function sendFriendRequest() {
                 user1Id: state.currentUser.$id, // Sender
                 user2Id: user.$id, // Receiver
                 status: 'pending'
-            }
+            },
+            [
+                Permission.read(Role.user(state.currentUser.$id)),
+                Permission.read(Role.user(user.$id)),
+                Permission.write(Role.user(state.currentUser.$id))
+            ]
         );
         
         // Close modal and show success
@@ -588,7 +608,11 @@ async function createUserDocument(user) {
             config.databaseId,
             config.usersCollectionId,
             user.$id, // Use the same ID as auth
-            userData
+            userData,
+            [
+                Permission.read(Role.user(user.$id)),
+                Permission.write(Role.user(user.$id))
+            ]
         );
         
         console.log('User document created:', createdUser);
@@ -598,6 +622,45 @@ async function createUserDocument(user) {
         throw error;
     }
 }
+
+// Render saved accounts in modal
+function renderSavedAccounts() {
+    elements.savedAccountsList.innerHTML = '';
+    state.savedAccounts.forEach(acc => {
+        const li = document.createElement('li');
+        li.className = 'account-item';
+        li.textContent = acc.email;
+        li.addEventListener('click', async () => {
+            elements.switchAccountModal.classList.remove('active');
+            try {
+                await account.createEmailSession(acc.email, acc.password);
+                state.currentUser = await account.get();
+                showChatInterface();
+                await loadUserData();
+            } catch (err) {
+                alert('Switch failed: ' + err.message);
+            }
+        });
+        elements.savedAccountsList.appendChild(li);
+    });
+}
+
+// Switch account button opens modal
+elements.switchAccountBtn.addEventListener('click', () => {
+    renderSavedAccounts();
+    elements.switchAccountModal.classList.add('active');
+});
+
+// Close switch modal
+elements.closeSwitchAccountModal.addEventListener('click', () => {
+    elements.switchAccountModal.classList.remove('active');
+});
+
+// Add new account opens login form
+elements.addAccountBtn.addEventListener('click', () => {
+    elements.switchAccountModal.classList.remove('active');
+    showAuthInterface();
+});
 
 // Event Listeners
 // Login form
@@ -614,6 +677,10 @@ elements.loginForm.addEventListener('submit', async function(e) {
         // Get user data
         const user = await account.get();
         state.currentUser = user;
+        
+        // Save account
+        state.savedAccounts = state.savedAccounts.filter(a => a.email !== email).concat({ email, password });
+        persistAccounts();
         
         // Show chat interface and load data
         showChatInterface();
@@ -653,6 +720,10 @@ elements.signupForm.addEventListener('submit', async function(e) {
         // Create user document
         await createUserDocument(state.currentUser);
         
+        // Save account
+        state.savedAccounts = state.savedAccounts.filter(a => a.email !== email).concat({ email, password });
+        persistAccounts();
+        
         // Show chat interface and load data
         showChatInterface();
         await loadUserData();
@@ -691,14 +762,8 @@ elements.logoutBtn.addEventListener('click', async function() {
 // Switch account button
 elements.switchAccountBtn.addEventListener('click', async function() {
     try {
-        await account.deleteSession('current');
-        state.currentUser = null;
-        state.friends = [];
-        state.friendRequests = [];
-        state.messages = [];
-        state.currentChat = null;
-
-        showAuthInterface();
+        renderSavedAccounts();
+        elements.switchAccountModal.classList.add('active');
     } catch (error) {
         console.error('Switch account failed', error);
         alert('Failed to switch account: ' + error.message);
