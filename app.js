@@ -9,7 +9,7 @@ const config = {
     friendsCollectionId: 'friends',
     messagesCollectionId: 'messages',
     usersCollectionId: 'users',
-    callsCollectionId: 'calls'
+    callsCollectionId: '680baa400017af476781'
 };
 
 // Configure allowed origins for Appwrite
