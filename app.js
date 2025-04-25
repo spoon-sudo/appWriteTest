@@ -1,5 +1,5 @@
 // Initialize Appwrite SDK
-const { Client, Account, ID, Databases, Query, Permission, Role, Realtime } = Appwrite;
+const { Client, Account, ID, Databases, Query, Permission, Role } = Appwrite;
 
 // App config
 const config = {
@@ -52,7 +52,6 @@ const client = new Client()
 // Create service instances
 const account = new Account(client);
 const databases = new Databases(client);
-const realtime = new Realtime(client);
 
 // App state
 const state = {
@@ -117,8 +116,8 @@ async function initApp() {
         showChatInterface();
         await loadUserData();
         // Subscribe to signaling documents for calls
-        realtime.subscribe(
-            `databases.${config.databaseId}.collections.${config.callsCollectionId}.documents`,
+        client.subscribe(
+            [`databases.${config.databaseId}.collections.${config.callsCollectionId}.documents`],
             (response) => handleCallSignal(response.payload)
         );
     } catch (error) {
