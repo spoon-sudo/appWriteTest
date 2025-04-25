@@ -81,7 +81,8 @@ const elements = {
     addFriendModal: document.getElementById('add-friend-modal'),
     friendEmail: document.getElementById('friend-email'),
     sendFriendRequest: document.getElementById('send-friend-request'),
-    logoutBtn: document.getElementById('logout-btn')
+    logoutBtn: document.getElementById('logout-btn'),
+    switchAccountBtn: document.getElementById('switch-account-btn')
 };
 
 // Initialize app
@@ -140,6 +141,7 @@ async function loadFriends() {
                     Query.equal('user1Id', state.currentUser.$id),
                     Query.equal('user2Id', state.currentUser.$id)
                 ])
+                
             ]
         );
         
@@ -439,13 +441,19 @@ async function sendFriendRequest() {
     
     if (!email) return;
     
-    try {
-        // Find user by email
+    try {   
+        // Find user by email - add some debug info
+        console.log('Searching for user with email:', email);
+        console.log('Database ID:', config.databaseId);
+        console.log('Users Collection ID:', config.usersCollectionId);
+        
         const response = await databases.listDocuments(
             config.databaseId,
             config.usersCollectionId,
-            [Query.equal('email', email)]
+            [Query.equal('email', email)]  // Fixed: removed array wrapper around email
         );
+        
+        console.log('User search response:', response);
         
         if (response.documents.length === 0) {
             alert('User not found. Please check the email address.');
@@ -467,12 +475,12 @@ async function sendFriendRequest() {
             [
                 Query.orQueries([
                     Query.andQueries([
-                        Query.equal('user1Id', state.currentUser.$id),
-                        Query.equal('user2Id', user.$id)
+                        Query.equal('user1Id', [state.currentUser.$id]),
+                        Query.equal('user2Id', [user.$id])
                     ]),
                     Query.andQueries([
-                        Query.equal('user1Id', user.$id),
-                        Query.equal('user2Id', state.currentUser.$id)
+                        Query.equal('user1Id', [user.$id]),
+                        Query.equal('user2Id', [state.currentUser.$id])
                     ])
                 ])
             ]
@@ -506,7 +514,7 @@ async function sendFriendRequest() {
         alert('Friend request sent successfully!');
     } catch (error) {
         console.error('Error sending friend request:', error);
-        alert('Failed to send friend request. Please try again.');
+        alert('Failed to send friend request: ' + error.message);
     }
 }
 
@@ -553,17 +561,41 @@ async function rejectFriendRequest(requestId) {
 // Create user in users collection after signup
 async function createUserDocument(user) {
     try {
-        await databases.createDocument(
+        console.log('Creating user document for:', user);
+        
+        // Check if user already exists in collection
+        const existingUsers = await databases.listDocuments(
             config.databaseId,
             config.usersCollectionId,
-            user.$id,
-            {
-                name: user.name,
-                email: user.email
-            }
+            [Query.equal('$id', [user.$id])]
         );
+        
+        // If user already exists, don't create duplicate
+        if (existingUsers.documents.length > 0) {
+            console.log('User already exists in collection');
+            return existingUsers.documents[0];
+        }
+        
+        // Create user document with same ID as auth user
+        const userData = {
+            userId: user.$id,
+            email: user.email,
+            name: user.name,
+            status: 'online'
+        };
+        
+        const createdUser = await databases.createDocument(
+            config.databaseId,
+            config.usersCollectionId,
+            user.$id, // Use the same ID as auth
+            userData
+        );
+        
+        console.log('User document created:', createdUser);
+        return createdUser;
     } catch (error) {
         console.error('Error creating user document:', error);
+        throw error;
     }
 }
 
@@ -653,6 +685,23 @@ elements.logoutBtn.addEventListener('click', async function() {
     } catch (error) {
         console.error('Logout failed', error);
         alert('Logout failed: ' + error.message);
+    }
+});
+
+// Switch account button
+elements.switchAccountBtn.addEventListener('click', async function() {
+    try {
+        await account.deleteSession('current');
+        state.currentUser = null;
+        state.friends = [];
+        state.friendRequests = [];
+        state.messages = [];
+        state.currentChat = null;
+
+        showAuthInterface();
+    } catch (error) {
+        console.error('Switch account failed', error);
+        alert('Failed to switch account: ' + error.message);
     }
 });
 
