@@ -151,11 +151,10 @@ async function loadFriends() {
             config.friendsCollectionId,
             [
                 Query.equal('status', 'accepted'),
-                Query.orQueries([
-                    Query.equal('user1Id', state.currentUser.$id),
-                    Query.equal('user2Id', state.currentUser.$id)
+                Query.or([
+                    Query.equal('user1Id', [state.currentUser.$id]),
+                    Query.equal('user2Id', [state.currentUser.$id])
                 ])
-                
             ]
         );
         
@@ -274,14 +273,14 @@ async function loadMessages(friendId) {
             config.databaseId,
             config.messagesCollectionId,
             [
-                Query.orQueries([
-                    Query.andQueries([
-                        Query.equal('senderId', state.currentUser.$id),
-                        Query.equal('receiverId', friendId)
+                Query.or([
+                    Query.and([
+                        Query.equal('senderId', [state.currentUser.$id]),
+                        Query.equal('receiverId', [friendId])
                     ]),
-                    Query.andQueries([
-                        Query.equal('senderId', friendId),
-                        Query.equal('receiverId', state.currentUser.$id)
+                    Query.and([
+                        Query.equal('senderId', [friendId]),
+                        Query.equal('receiverId', [state.currentUser.$id])
                     ])
                 ]),
                 Query.orderDesc('$createdAt')
@@ -469,7 +468,7 @@ async function sendFriendRequest() {
         const response = await databases.listDocuments(
             config.databaseId,
             config.usersCollectionId,
-            [Query.equal('email', email)]  // Fixed: removed array wrapper around email
+            [ Query.equal('email', [email]) ]
         );
         
         console.log('User search response:', response);
@@ -492,14 +491,14 @@ async function sendFriendRequest() {
             config.databaseId,
             config.friendsCollectionId,
             [
-                Query.orQueries([
-                    Query.andQueries([
-                        Query.equal('user1Id', state.currentUser.$id),
-                        Query.equal('user2Id', user.$id)
+                Query.or([
+                    Query.and([
+                        Query.equal('user1Id', [state.currentUser.$id]),
+                        Query.equal('user2Id', [user.$id])
                     ]),
-                    Query.andQueries([
-                        Query.equal('user1Id', user.$id),
-                        Query.equal('user2Id', state.currentUser.$id)
+                    Query.and([
+                        Query.equal('user1Id', [user.$id]),
+                        Query.equal('user2Id', [state.currentUser.$id])
                     ])
                 ])
             ]
