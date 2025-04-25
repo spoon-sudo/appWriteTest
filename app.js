@@ -671,6 +671,8 @@ elements.loginForm.addEventListener('submit', async function(e) {
     const password = document.getElementById('login-password').value;
     
     try {
+        // Remove any existing session to allow fresh login
+        await account.deleteSession('current').catch(() => {});
         // Create session
         await account.createEmailSession(email, password);
         
