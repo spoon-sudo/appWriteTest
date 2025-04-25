@@ -155,11 +155,11 @@ async function handleCallSignal(payload) {
         state.peerConnection.ontrack = e => { elements.remoteAudio.srcObject = e.streams[0]; elements.remoteAudio.style.display = 'block'; };
         state.peerConnection.onicecandidate = e => {
             if (e.candidate) {
-                databases.createDocument(
+                databases.updateDocument(
                     config.databaseId,
                     config.callsCollectionId,
-                    ID.unique(),
-                    { from: state.currentUser.$id, to: from, candidate: e.candidate, callId: $id }
+                    $id,
+                    { candidate: JSON.stringify(e.candidate) }
                 );
             }
         };
@@ -171,8 +171,7 @@ async function handleCallSignal(payload) {
             config.databaseId,
             config.callsCollectionId,
             $id,
-            { answer: ans },
-            []
+            { answer: JSON.stringify(ans) }
         );
     }
     // Handle answer
@@ -198,12 +197,12 @@ async function initiateCall() {
     state.localStream.getTracks().forEach(track => state.peerConnection.addTrack(track, state.localStream));
     state.peerConnection.ontrack = e => { elements.remoteAudio.srcObject = e.streams[0]; elements.remoteAudio.style.display = 'block'; };
     state.peerConnection.onicecandidate = e => {
-        if (e.candidate) {
-            databases.createDocument(
+        if (e.candidate && state.callDocId) {
+            databases.updateDocument(
                 config.databaseId,
                 config.callsCollectionId,
-                ID.unique(),
-                { from: state.currentUser.$id, to: to, candidate: e.candidate, callId: state.callDocId }
+                state.callDocId,
+                { candidate: JSON.stringify(e.candidate) }
             );
         }
     };
@@ -216,7 +215,7 @@ async function initiateCall() {
         config.databaseId,
         config.callsCollectionId,
         state.callDocId,
-        { from: state.currentUser.$id, to: to, offer: offer, callId: state.callDocId },
+        { from: state.currentUser.$id, to: to, offer: JSON.stringify(offer), callId: state.callDocId },
         []
     );
 }
