@@ -494,12 +494,12 @@ async function sendFriendRequest() {
             [
                 Query.orQueries([
                     Query.andQueries([
-                        Query.equal('user1Id', [state.currentUser.$id]),
-                        Query.equal('user2Id', [user.$id])
+                        Query.equal('user1Id', state.currentUser.$id),
+                        Query.equal('user2Id', user.$id)
                     ]),
                     Query.andQueries([
-                        Query.equal('user1Id', [user.$id]),
-                        Query.equal('user2Id', [state.currentUser.$id])
+                        Query.equal('user1Id', user.$id),
+                        Query.equal('user2Id', state.currentUser.$id)
                     ])
                 ])
             ]
@@ -538,7 +538,11 @@ async function sendFriendRequest() {
         alert('Friend request sent successfully!');
     } catch (error) {
         console.error('Error sending friend request:', error);
-        alert('Failed to send friend request: ' + error.message);
+        if (error.code === 401 || error.message.includes('not authorized')) {
+            alert('You are not authorized to send friend requests.\nPlease go to your Appwrite Console → Database → friends collection and grant CREATE permission to authenticated users (role: member).');
+        } else {
+            alert('Failed to send friend request: ' + error.message);
+        }
     }
 }
 
