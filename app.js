@@ -209,14 +209,21 @@ async function initiateCall() {
     // Create offer
     const offer = await state.peerConnection.createOffer();
     await state.peerConnection.setLocalDescription(offer);
-    // Create signaling doc
-    state.callDocId = ID.unique();
-    await databases.createDocument(
+    // Create signaling document and capture its actual ID
+    const callDoc = await databases.createDocument(
+        config.databaseId,
+        config.callsCollectionId,
+        ID.unique(),
+        { from: state.currentUser.$id, to: to, offer: JSON.stringify(offer), callId: '' },
+        []
+    );
+    state.callDocId = callDoc.$id;
+    // Update callId field now that we have the real document ID
+    await databases.updateDocument(
         config.databaseId,
         config.callsCollectionId,
         state.callDocId,
-        { from: state.currentUser.$id, to: to, offer: JSON.stringify(offer), callId: state.callDocId },
-        []
+        { callId: state.callDocId }
     );
 }
 
