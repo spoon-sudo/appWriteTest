@@ -158,14 +158,11 @@ elements.acceptCallBtn.addEventListener('click', async () => {
     state.pendingCall = null;
 });
 
-// Subscribe to call signaling document create and update events
+// Subscribe to call signaling channel for all document events
 function subscribeCalls() {
-    const base = `databases.${config.databaseId}.collections.${config.callsCollectionId}.documents`;
+    const channel = `databases.${config.databaseId}.collections.${config.callsCollectionId}.documents`;
     client.subscribe(
-        [
-            `${base}.create`,
-            `${base}.update`
-        ],
+        [ channel ],
         (response) => {
             console.log('Call signal event:', response);
             handleCallSignal(response.payload);
