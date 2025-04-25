@@ -92,7 +92,11 @@ const elements = {
     switchAccountModal: document.getElementById('switch-account-modal'),
     savedAccountsList: document.getElementById('saved-accounts-list'),
     closeSwitchAccountModal: document.getElementById('close-switch-account-modal'),
-    addAccountBtn: document.getElementById('add-account-btn')
+    addAccountBtn: document.getElementById('add-account-btn'),
+    // Save current account UI
+    saveCurrentContainer: document.getElementById('save-current-account-container'),
+    saveCurrentPassword: document.getElementById('save-current-password'),
+    saveCurrentAccountBtn: document.getElementById('save-current-account-btn')
 };
 
 // Initialize app
@@ -626,15 +630,43 @@ async function createUserDocument(user) {
 // Render saved accounts in modal
 function renderSavedAccounts() {
     elements.savedAccountsList.innerHTML = '';
+
+    // Show or hide save UI for current account
+    if (state.currentUser && !state.savedAccounts.some(a => a.email === state.currentUser.email)) {
+        elements.saveCurrentContainer.style.display = 'block';
+    } else {
+        elements.saveCurrentContainer.style.display = 'none';
+    }
+
+    // Show current user at top
+    if (state.currentUser) {
+        const currentLi = document.createElement('li');
+        currentLi.className = 'account-item';
+        currentLi.textContent = state.currentUser.email + ' (current)';
+        currentLi.addEventListener('click', () => {
+            elements.switchAccountModal.classList.remove('active');
+        });
+        elements.savedAccountsList.appendChild(currentLi);
+    }
+
     state.savedAccounts.forEach(acc => {
+        if (acc.email === state.currentUser.email) return;
         const li = document.createElement('li');
         li.className = 'account-item';
         li.textContent = acc.email;
         li.addEventListener('click', async () => {
             elements.switchAccountModal.classList.remove('active');
             try {
+                // Remove current session before switching
+                await account.deleteSession('current').catch(() => {});
+                // Create session for selected account
                 await account.createEmailSession(acc.email, acc.password);
                 state.currentUser = await account.get();
+                // Auto-save this switched account
+                state.savedAccounts = state.savedAccounts.filter(a => a.email !== acc.email).concat({ email: acc.email, password: acc.password });
+                persistAccounts();
+                // Hide save UI since account is now saved
+                elements.saveCurrentContainer.style.display = 'none';
                 showChatInterface();
                 await loadUserData();
             } catch (err) {
@@ -644,6 +676,21 @@ function renderSavedAccounts() {
         elements.savedAccountsList.appendChild(li);
     });
 }
+
+// Setup Save Current Account button
+elements.saveCurrentAccountBtn.addEventListener('click', function() {
+    const pwd = elements.saveCurrentPassword.value.trim();
+    if (!pwd) {
+        alert('Please enter your password to save this account.');
+        return;
+    }
+    // Add current user credentials
+    state.savedAccounts.push({ email: state.currentUser.email, password: pwd });
+    persistAccounts();
+    // Hide save UI and re-render list
+    elements.saveCurrentContainer.style.display = 'none';
+    renderSavedAccounts();
+});
 
 // Switch account button opens modal
 elements.switchAccountBtn.addEventListener('click', () => {
@@ -671,8 +718,8 @@ elements.loginForm.addEventListener('submit', async function(e) {
     const password = document.getElementById('login-password').value;
     
     try {
-        // Remove any existing session to allow fresh login
-        await account.deleteSession('current').catch(() => {});
+        // Remove any existing sessions to allow fresh login
+        await account.deleteSessions().catch(() => {});
         // Create session
         await account.createEmailSession(email, password);
         
