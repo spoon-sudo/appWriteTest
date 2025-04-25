@@ -65,7 +65,8 @@ const state = {
     // Call state
     localStream: null,
     peerConnection: null,
-    callDocId: null
+    callDocId: null,
+    pendingCall: null
 };
 
 // Persist saved accounts
@@ -102,8 +103,50 @@ const elements = {
     saveCurrentContainer: document.getElementById('save-current-account-container'),
     saveCurrentPassword: document.getElementById('save-current-password'),
     saveCurrentAccountBtn: document.getElementById('save-current-account-btn'),
-    remoteAudio: document.getElementById('remote-audio')
+    remoteAudio: document.getElementById('remote-audio'),
+    callingModal: document.getElementById('calling-modal'),
+    callingCalleeName: document.getElementById('calling-callee-name'),
+    cancelCallBtn: document.getElementById('cancel-call-btn'),
+    incomingCallModal: document.getElementById('incoming-call-modal'),
+    incomingCallerName: document.getElementById('incoming-caller-name'),
+    acceptCallBtn: document.getElementById('accept-call-btn'),
+    declineCallBtn: document.getElementById('decline-call-btn')
 };
+
+// Cancel outgoing call
+elements.cancelCallBtn.addEventListener('click', () => {
+    elements.callingModal.classList.remove('active');
+    if (state.peerConnection) {
+        state.peerConnection.close();
+        state.peerConnection = null;
+    }
+});
+
+// Decline incoming call
+elements.declineCallBtn.addEventListener('click', () => {
+    elements.incomingCallModal.classList.remove('active');
+    state.pendingCall = null;
+});
+
+// Accept incoming call
+elements.acceptCallBtn.addEventListener('click', async () => {
+    const call = state.pendingCall;
+    if (!call) return;
+    elements.incomingCallModal.classList.remove('active');
+    // proceed with answer (existing code)
+    state.localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    state.peerConnection = new RTCPeerConnection();
+    state.localStream.getTracks().forEach(t => state.peerConnection.addTrack(t, state.localStream));
+    state.peerConnection.ontrack = e => { elements.remoteAudio.srcObject = e.streams[0]; elements.remoteAudio.style.display = 'block'; };
+    state.peerConnection.onicecandidate = e => {
+        if (e.candidate) databases.updateDocument(config.databaseId, config.callsCollectionId, call.id, { candidate: JSON.stringify(e.candidate) });
+    };
+    await state.peerConnection.setRemoteDescription(call.offer);
+    const ans = await state.peerConnection.createAnswer();
+    await state.peerConnection.setLocalDescription(ans);
+    await databases.updateDocument(config.databaseId, config.callsCollectionId, call.id, { answer: JSON.stringify(ans) });
+    state.pendingCall = null;
+});
 
 // Initialize app
 async function initApp() {
@@ -118,7 +161,10 @@ async function initApp() {
         // Subscribe to signaling documents for calls
         client.subscribe(
             [`databases.${config.databaseId}.collections.${config.callsCollectionId}.documents`],
-            (response) => handleCallSignal(response.payload)
+            (response) => {
+                console.log('Call signal subscription event:', response);
+                handleCallSignal(response.payload);
+            }
         );
     } catch (error) {
         // User is not logged in, show auth interface
@@ -138,41 +184,28 @@ function showChatInterface() {
     elements.authContainer.style.display = 'none';
     elements.chatContainer.style.display = 'flex';
     elements.currentUserName.textContent = state.currentUser.name;
+    // Ensure call button is bound whenever chat interface shows
+    const voiceBtn = document.getElementById('voice-call-btn');
+    if (voiceBtn) {
+        console.log('Binding voice call button in showChatInterface');
+        voiceBtn.onclick = initiateCall;
+    }
 }
 
 // Handle incoming signaling messages
 async function handleCallSignal(payload) {
+    console.log('handleCallSignal payload:', payload);
     const { $id, from, to, offer, answer, candidate } = payload;
     // Only handle calls where this user is the target
     if (to !== state.currentUser.$id) return;
-    // If offer arrives, prompt to accept
+    // If offer arrives, show incoming call UI
     if (offer && !state.peerConnection) {
-        if (!confirm(`Incoming call from ${from}. Accept?`)) return;
-        // Create PeerConnection
-        state.localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        state.peerConnection = new RTCPeerConnection();
-        state.localStream.getTracks().forEach(track => state.peerConnection.addTrack(track, state.localStream));
-        state.peerConnection.ontrack = e => { elements.remoteAudio.srcObject = e.streams[0]; elements.remoteAudio.style.display = 'block'; };
-        state.peerConnection.onicecandidate = e => {
-            if (e.candidate) {
-                databases.updateDocument(
-                    config.databaseId,
-                    config.callsCollectionId,
-                    $id,
-                    { candidate: JSON.stringify(e.candidate) }
-                );
-            }
-        };
-        await state.peerConnection.setRemoteDescription(offer);
-        const ans = await state.peerConnection.createAnswer();
-        await state.peerConnection.setLocalDescription(ans);
-        // Send answer
-        await databases.updateDocument(
-            config.databaseId,
-            config.callsCollectionId,
-            $id,
-            { answer: JSON.stringify(ans) }
-        );
+        // Show incoming call UI
+        elements.incomingCallerName.textContent = from;
+        elements.incomingCallModal.classList.add('active');
+        // store pending call info
+        state.pendingCall = { id: $id, from, offer: new RTCSessionDescription(JSON.parse(offer)) };
+        return; // wait for user to accept
     }
     // Handle answer
     if (answer && state.peerConnection) {
@@ -186,11 +219,15 @@ async function handleCallSignal(payload) {
 
 // Replace initiateCall stub with real function
 async function initiateCall() {
+    console.log('initiateCall: currentChat=', state.currentChat);
     if (!state.currentChat) {
         alert('Please select a friend to call.');
         return;
     }
     const to = state.currentChat;
+    // Show outgoing UI
+    elements.callingCalleeName.textContent = to;
+    elements.callingModal.classList.add('active');
     // Get audio stream
     state.localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
     state.peerConnection = new RTCPeerConnection();
@@ -557,10 +594,6 @@ async function sendMessage() {
         alert('Failed to send message: ' + error.message);
     }
 }
-
-// Calling functionality (voice only)
-elements.voiceCallBtn = document.getElementById('voice-call-btn');
-elements.voiceCallBtn.addEventListener('click', initiateCall);
 
 // Send friend request
 async function sendFriendRequest() {
