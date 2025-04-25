@@ -614,6 +614,7 @@ async function createUserDocument(user) {
             user.$id, // Use the same ID as auth
             userData,
             [
+                Permission.read(Role.any()),      // allow public read to lookup by email
                 Permission.read(Role.user(user.$id)),
                 Permission.write(Role.user(user.$id))
             ]
