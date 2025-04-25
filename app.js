@@ -105,6 +105,8 @@ async function initApp() {
         // Check if user is already logged in
         const user = await account.get();
         state.currentUser = user;
+        // Ensure user document exists or update permissions
+        await createUserDocument(state.currentUser);
         showChatInterface();
         await loadUserData();
     } catch (error) {
