@@ -110,8 +110,18 @@ const elements = {
     incomingCallModal: document.getElementById('incoming-call-modal'),
     incomingCallerName: document.getElementById('incoming-caller-name'),
     acceptCallBtn: document.getElementById('accept-call-btn'),
-    declineCallBtn: document.getElementById('decline-call-btn')
+    declineCallBtn: document.getElementById('decline-call-btn'),
+    voiceCallBtn: document.getElementById('voice-call-btn'),
 };
+
+// Bind voice call button early
+if (elements.voiceCallBtn) {
+    console.log('Binding voice call button');
+    elements.voiceCallBtn.addEventListener('click', () => {
+        console.log('Voice call button clicked');
+        initiateCall();
+    });
+}
 
 // Cancel outgoing call
 elements.cancelCallBtn.addEventListener('click', () => {
@@ -148,6 +158,21 @@ elements.acceptCallBtn.addEventListener('click', async () => {
     state.pendingCall = null;
 });
 
+// Subscribe to call signaling document create and update events
+function subscribeCalls() {
+    const base = `databases.${config.databaseId}.collections.${config.callsCollectionId}.documents`;
+    client.subscribe(
+        [
+            `${base}.create`,
+            `${base}.update`
+        ],
+        (response) => {
+            console.log('Call signal event:', response);
+            handleCallSignal(response.payload);
+        }
+    );
+}
+
 // Initialize app
 async function initApp() {
     try {
@@ -158,14 +183,7 @@ async function initApp() {
         await createUserDocument(state.currentUser);
         showChatInterface();
         await loadUserData();
-        // Subscribe to signaling documents for calls
-        client.subscribe(
-            [`databases.${config.databaseId}.collections.${config.callsCollectionId}.documents`],
-            (response) => {
-                console.log('Call signal subscription event:', response);
-                handleCallSignal(response.payload);
-            }
-        );
+        subscribeCalls();
     } catch (error) {
         // User is not logged in, show auth interface
         console.log('User is not logged in:', error.message);
@@ -196,24 +214,44 @@ function showChatInterface() {
 async function handleCallSignal(payload) {
     console.log('handleCallSignal payload:', payload);
     const { $id, from, to, offer, answer, candidate } = payload;
-    // Only handle calls where this user is the target
-    if (to !== state.currentUser.$id) return;
+    // Normalize 'to' and 'from' fields in case they come as arrays or objects
+    const toField = to;
+    const fromField = from;
+    const toId = typeof toField === 'string'
+        ? toField
+        : Array.isArray(toField)
+            ? toField[0].$id
+            : toField.$id;
+    const fromId = typeof fromField === 'string'
+        ? fromField
+        : Array.isArray(fromField)
+            ? fromField[0].$id
+            : fromField.$id;
+    console.log(`handleCallSignal: toId=${toId}, currentUserId=${state.currentUser.$id}`);
+    if (toId !== state.currentUser.$id) {
+        console.log('Not for this user, ignoring');
+        return;
+    }
     // If offer arrives, show incoming call UI
     if (offer && !state.peerConnection) {
+        console.log('Incoming call offer from', fromId);
         // Show incoming call UI
-        elements.incomingCallerName.textContent = from;
+        const callerName = state.friends.find(f => f.id === fromId)?.name || fromId;
+        elements.incomingCallerName.textContent = callerName;
         elements.incomingCallModal.classList.add('active');
         // store pending call info
-        state.pendingCall = { id: $id, from, offer: new RTCSessionDescription(JSON.parse(offer)) };
+        state.pendingCall = { id: $id, from: fromId, offer: new RTCSessionDescription(JSON.parse(offer)) };
         return; // wait for user to accept
     }
     // Handle answer
     if (answer && state.peerConnection) {
-        await state.peerConnection.setRemoteDescription(answer);
+        console.log('Received answer for call', $id);
+        await state.peerConnection.setRemoteDescription(new RTCSessionDescription(JSON.parse(answer)));
     }
     // Handle candidate
     if (candidate && state.peerConnection) {
-        await state.peerConnection.addIceCandidate(candidate);
+        console.log('Received ICE candidate');
+        await state.peerConnection.addIceCandidate(new RTCIceCandidate(JSON.parse(candidate)));
     }
 }
 
@@ -251,8 +289,7 @@ async function initiateCall() {
         config.databaseId,
         config.callsCollectionId,
         ID.unique(),
-        { from: state.currentUser.$id, to: to, offer: JSON.stringify(offer), callId: '' },
-        []
+        { from: state.currentUser.$id, to: to, offer: JSON.stringify(offer), callId: '' }
     );
     state.callDocId = callDoc.$id;
     // Update callId field now that we have the real document ID
@@ -896,6 +933,7 @@ elements.loginForm.addEventListener('submit', async function(e) {
         // Show chat interface and load data
         showChatInterface();
         await loadUserData();
+        subscribeCalls();
     } catch (error) {
         console.error('Login failed', error);
         alert('Login failed: ' + error.message);
@@ -938,6 +976,7 @@ elements.signupForm.addEventListener('submit', async function(e) {
         // Show chat interface and load data
         showChatInterface();
         await loadUserData();
+        subscribeCalls();
         
         // Success message
         alert("Account created successfully!");
