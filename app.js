@@ -488,23 +488,24 @@ async function sendFriendRequest() {
             return;
         }
         
-        // Check if already friends or pending
-        const existingFriendship = await databases.listDocuments(
+        // Check if already friends or pending by querying both directions
+        const resp1 = await databases.listDocuments(
             config.databaseId,
             config.friendsCollectionId,
             [
-                Query.or([
-                    Query.and([
-                        Query.equal('user1Id', [state.currentUser.$id]),
-                        Query.equal('user2Id', [user.$id])
-                    ]),
-                    Query.and([
-                        Query.equal('user1Id', [user.$id]),
-                        Query.equal('user2Id', [state.currentUser.$id])
-                    ])
-                ])
+                Query.equal('user1Id', [state.currentUser.$id]),
+                Query.equal('user2Id', [user.$id])
             ]
         );
+        const resp2 = await databases.listDocuments(
+            config.databaseId,
+            config.friendsCollectionId,
+            [
+                Query.equal('user1Id', [user.$id]),
+                Query.equal('user2Id', [state.currentUser.$id])
+            ]
+        );
+        const existingFriendship = { documents: [...resp1.documents, ...resp2.documents] };
         
         if (existingFriendship.documents.length > 0) {
             const status = existingFriendship.documents[0].status;
