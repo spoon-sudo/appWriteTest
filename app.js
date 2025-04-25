@@ -147,18 +147,25 @@ async function loadUserData() {
 // Load friends list
 async function loadFriends() {
     try {
-        // Find all friend relationships where the user is involved
-        const response = await databases.listDocuments(
+        // Fetch accepted friendships where current user is user1 or user2
+        const resp1 = await databases.listDocuments(
             config.databaseId,
             config.friendsCollectionId,
             [
                 Query.equal('status', 'accepted'),
-                Query.or([
-                    Query.equal('user1Id', [state.currentUser.$id]),
-                    Query.equal('user2Id', [state.currentUser.$id])
-                ])
+                Query.equal('user1Id', [state.currentUser.$id])
             ]
         );
+        const resp2 = await databases.listDocuments(
+            config.databaseId,
+            config.friendsCollectionId,
+            [
+                Query.equal('status', 'accepted'),
+                Query.equal('user2Id', [state.currentUser.$id])
+            ]
+        );
+        // Merge both directions
+        const response = { documents: [...resp1.documents, ...resp2.documents] };
         
         state.friends = [];
         elements.friendsList.innerHTML = '';
