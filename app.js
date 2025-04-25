@@ -278,26 +278,28 @@ function setupRealtimeListeners() {
 // Load messages for a chat
 async function loadMessages(friendId) {
     try {
-        const response = await databases.listDocuments(
+        // Query messages in both directions then merge and sort
+        const respA = await databases.listDocuments(
             config.databaseId,
             config.messagesCollectionId,
             [
-                Query.or([
-                    Query.and([
-                        Query.equal('senderId', [state.currentUser.$id]),
-                        Query.equal('receiverId', [friendId])
-                    ]),
-                    Query.and([
-                        Query.equal('senderId', [friendId]),
-                        Query.equal('receiverId', [state.currentUser.$id])
-                    ])
-                ]),
-                Query.orderDesc('$createdAt')
+                Query.equal('senderId', [state.currentUser.$id]),
+                Query.equal('receiverId', [friendId])
             ],
-            100 // Limit to 100 messages
+            100
         );
-        
-        state.messages = response.documents.reverse(); // Reverse to show oldest first
+        const respB = await databases.listDocuments(
+            config.databaseId,
+            config.messagesCollectionId,
+            [
+                Query.equal('senderId', [friendId]),
+                Query.equal('receiverId', [state.currentUser.$id])
+            ],
+            100
+        );
+        // Merge both directions and sort by creation time
+        state.messages = [...respA.documents, ...respB.documents]
+            .sort((a, b) => new Date(a.$createdAt) - new Date(b.$createdAt));
         renderMessages();
     } catch (error) {
         console.error('Error loading messages:', error);
