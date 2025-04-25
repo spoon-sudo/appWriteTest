@@ -598,10 +598,29 @@ async function createUserDocument(user) {
             [Query.equal('$id', [user.$id])]
         );
         
-        // If user already exists, don't create duplicate
+        // If user already exists, update permissions
         if (existingUsers.documents.length > 0) {
-            console.log('User already exists in collection');
-            return existingUsers.documents[0];
+            console.log('User already exists in collection, updating permissions');
+            const existing = existingUsers.documents[0];
+            await databases.updateDocument(
+                config.databaseId,
+                config.usersCollectionId,
+                existing.$id,
+                {
+                    userId: existing.userId,
+                    email: existing.email,
+                    name: existing.name,
+                    status: existing.status
+                },
+                [
+                    Permission.read(Role.any()),
+                    Permission.read(Role.user(existing.userId))
+                ],
+                [
+                    Permission.write(Role.user(existing.userId))
+                ]
+            );
+            return existing;
         }
         
         // Create user document with same ID as auth user
