@@ -1,5 +1,5 @@
 // Initialize Appwrite SDK
-const { Client, Account, ID, Databases, Query, Permission, Role } = Appwrite;
+const { Client, Account, ID, Databases, Query, Permission, Role, Realtime } = Appwrite;
 
 // App config
 const config = {
@@ -8,7 +8,8 @@ const config = {
     databaseId: 'cloudchat-db',
     friendsCollectionId: 'friends',
     messagesCollectionId: 'messages',
-    usersCollectionId: 'users'
+    usersCollectionId: 'users',
+    callsCollectionId: 'calls'
 };
 
 // Configure allowed origins for Appwrite
@@ -51,6 +52,7 @@ const client = new Client()
 // Create service instances
 const account = new Account(client);
 const databases = new Databases(client);
+const realtime = new Realtime(client);
 
 // App state
 const state = {
@@ -60,7 +62,11 @@ const state = {
     currentChat: null,
     messages: [],
     darkMode: localStorage.getItem('theme') === 'dark',
-    savedAccounts: JSON.parse(localStorage.getItem('savedAccounts') || '[]')
+    savedAccounts: JSON.parse(localStorage.getItem('savedAccounts') || '[]'),
+    // Call state
+    localStream: null,
+    peerConnection: null,
+    callDocId: null
 };
 
 // Persist saved accounts
@@ -96,7 +102,8 @@ const elements = {
     // Save current account UI
     saveCurrentContainer: document.getElementById('save-current-account-container'),
     saveCurrentPassword: document.getElementById('save-current-password'),
-    saveCurrentAccountBtn: document.getElementById('save-current-account-btn')
+    saveCurrentAccountBtn: document.getElementById('save-current-account-btn'),
+    remoteAudio: document.getElementById('remote-audio')
 };
 
 // Initialize app
@@ -109,6 +116,11 @@ async function initApp() {
         await createUserDocument(state.currentUser);
         showChatInterface();
         await loadUserData();
+        // Subscribe to signaling documents for calls
+        realtime.subscribe(
+            `databases.${config.databaseId}.collections.${config.callsCollectionId}.documents`,
+            (response) => handleCallSignal(response.payload)
+        );
     } catch (error) {
         // User is not logged in, show auth interface
         console.log('User is not logged in:', error.message);
@@ -127,6 +139,87 @@ function showChatInterface() {
     elements.authContainer.style.display = 'none';
     elements.chatContainer.style.display = 'flex';
     elements.currentUserName.textContent = state.currentUser.name;
+}
+
+// Handle incoming signaling messages
+async function handleCallSignal(payload) {
+    const { $id, from, to, offer, answer, candidate } = payload;
+    // Only handle calls where this user is the target
+    if (to !== state.currentUser.$id) return;
+    // If offer arrives, prompt to accept
+    if (offer && !state.peerConnection) {
+        if (!confirm(`Incoming call from ${from}. Accept?`)) return;
+        // Create PeerConnection
+        state.localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        state.peerConnection = new RTCPeerConnection();
+        state.localStream.getTracks().forEach(track => state.peerConnection.addTrack(track, state.localStream));
+        state.peerConnection.ontrack = e => { elements.remoteAudio.srcObject = e.streams[0]; elements.remoteAudio.style.display = 'block'; };
+        state.peerConnection.onicecandidate = e => {
+            if (e.candidate) {
+                databases.createDocument(
+                    config.databaseId,
+                    config.callsCollectionId,
+                    ID.unique(),
+                    { from: state.currentUser.$id, to: from, candidate: e.candidate, callId: $id }
+                );
+            }
+        };
+        await state.peerConnection.setRemoteDescription(offer);
+        const ans = await state.peerConnection.createAnswer();
+        await state.peerConnection.setLocalDescription(ans);
+        // Send answer
+        await databases.updateDocument(
+            config.databaseId,
+            config.callsCollectionId,
+            $id,
+            { answer: ans },
+            []
+        );
+    }
+    // Handle answer
+    if (answer && state.peerConnection) {
+        await state.peerConnection.setRemoteDescription(answer);
+    }
+    // Handle candidate
+    if (candidate && state.peerConnection) {
+        await state.peerConnection.addIceCandidate(candidate);
+    }
+}
+
+// Replace initiateCall stub with real function
+async function initiateCall() {
+    if (!state.currentChat) {
+        alert('Please select a friend to call.');
+        return;
+    }
+    const to = state.currentChat;
+    // Get audio stream
+    state.localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    state.peerConnection = new RTCPeerConnection();
+    state.localStream.getTracks().forEach(track => state.peerConnection.addTrack(track, state.localStream));
+    state.peerConnection.ontrack = e => { elements.remoteAudio.srcObject = e.streams[0]; elements.remoteAudio.style.display = 'block'; };
+    state.peerConnection.onicecandidate = e => {
+        if (e.candidate) {
+            databases.createDocument(
+                config.databaseId,
+                config.callsCollectionId,
+                ID.unique(),
+                { from: state.currentUser.$id, to: to, candidate: e.candidate, callId: state.callDocId }
+            );
+        }
+    };
+    // Create offer
+    const offer = await state.peerConnection.createOffer();
+    await state.peerConnection.setLocalDescription(offer);
+    // Create signaling doc
+    state.callDocId = ID.unique();
+    await databases.createDocument(
+        config.databaseId,
+        config.callsCollectionId,
+        state.callDocId,
+        { from: state.currentUser.$id, to: to, offer: offer, callId: state.callDocId },
+        []
+    );
 }
 
 // Load user data (friends, messages, etc.)
@@ -459,6 +552,10 @@ async function sendMessage() {
         alert('Failed to send message: ' + error.message);
     }
 }
+
+// Calling functionality (voice only)
+elements.voiceCallBtn = document.getElementById('voice-call-btn');
+elements.voiceCallBtn.addEventListener('click', initiateCall);
 
 // Send friend request
 async function sendFriendRequest() {

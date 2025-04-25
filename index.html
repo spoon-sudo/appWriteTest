@@ -188,13 +188,12 @@
                         </div>
                     </div>
                     <div class="chat-actions">
-                        <button class="btn-icon" title="Video Call">
-                            <i class="fas fa-video"></i>
-                        </button>
-                        <button class="btn-icon" title="Voice Call">
+                        <button id="voice-call-btn" class="btn-icon" title="Voice Call">
                             <i class="fas fa-phone"></i>
                         </button>
                     </div>
+                    <!-- Audio element for incoming voice call -->
+                    <audio id="remote-audio" autoplay style="display:none;"></audio>
                 </div>
                 
                 <div class="chat-messages" id="chat-messages">
